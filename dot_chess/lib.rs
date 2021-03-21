@@ -1,71 +1,93 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+mod board;
+
 use ink_lang as ink;
 
 #[ink::contract]
 mod dot_chess {
 
-    /// Defines the storage of your contract.
-    /// Add new fields to the below struct in order
-    /// to add new static storage fields to your contract.
+    use crate::board::{Board, Move, MoveFlags, Square, SquareIndex};
+    use scale::{Decode, Encode};
+
+    #[derive(Encode, Decode, Debug, PartialEq, Eq, Copy, Clone)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub enum Error {
+        InvalidArgument,
+    }
+
     #[ink(storage)]
     pub struct DotChess {
-        /// Stores a single `bool` value on the storage.
-        value: bool,
+        /// Account playing as white
+        white: AccountId,
+        /// Account playing as black
+        black: AccountId,
+        /// Chess board
+        board: ink_storage::Pack<Board>,
+        /// Is it whites turn?
+        whites_turn: bool,
     }
 
     impl DotChess {
-        /// Constructor that initializes the `bool` value to the given `init_value`.
+        /// Initiates new game
         #[ink(constructor)]
-        pub fn new(init_value: bool) -> Self {
-            Self { value: init_value }
+        pub fn new(white: AccountId, black: AccountId) -> Self {
+            Self {
+                white,
+                black,
+                board: ink_storage::Pack::new(Board::default()),
+                whites_turn: true,
+            }
         }
 
-        /// Constructor that initializes the `bool` value to `false`.
+        /// Returns array of 64 8-bit integers representing current state of the board 
+        /// in following square order: A1, A2, ..., B1, B2, ..., H8
         ///
-        /// Constructors can delegate to other constructors.
-        #[ink(constructor)]
-        pub fn default() -> Self {
-            Self::new(Default::default())
+        /// 0 - Empty square
+        /// 1 - Pawn
+        /// 2 - Knight
+        /// 3 - Bishop
+        /// 4 - Rook
+        /// 5 - Queen
+        /// 6 - King
+        ///
+        /// Negative integers represent black pieces
+        /// Positive integers represent white pieces
+        pub fn get_board(&self) -> [i8; 64] {
+            self.board.to_array()
         }
 
-        /// A message that can be called on instantiated contracts.
-        /// This one flips the value of the stored `bool` from `true`
-        /// to `false` and vice versa.
+        /// Makes a move
+        ///
+        /// Returns true if move was successful
         #[ink(message)]
-        pub fn flip(&mut self) {
-            self.value = !self.value;
+        pub fn make_move(&self, from: SquareIndex, to: SquareIndex, flags: MoveFlags) -> bool {
+            let caller = self.env().caller();
+
+            let account_in_turn = if self.whites_turn {
+                self.white
+            } else {
+                self.black
+            };
+
+            // Only player in turn is allowed to call this
+            if caller != account_in_turn {
+                todo!("Emit event");
+
+                return false;
+            }
+
+            let m = Move::new(Square::from_index(from), Square::from_index(to), flags);
+
+            todo!("Update board");
+
+            true
         }
 
-        /// Simply returns the current value of our `bool`.
+        /// Returns true if it's whites turn, false otherwise
         #[ink(message)]
-        pub fn get(&self) -> bool {
-            self.value
-        }
-    }
-
-    /// Unit tests in Rust are normally defined within such a `#[cfg(test)]`
-    /// module and test functions are marked with a `#[test]` attribute.
-    /// The below code is technically just normal Rust code.
-    #[cfg(test)]
-    mod tests {
-        /// Imports all the definitions from the outer scope so we can use them here.
-        use super::*;
-
-        /// We test if the default constructor does its job.
-        #[test]
-        fn default_works() {
-            let dot_chess = DotChess::default();
-            assert_eq!(dot_chess.get(), false);
-        }
-
-        /// We test a simple use case of our contract.
-        #[test]
-        fn it_works() {
-            let mut dot_chess = DotChess::new(false);
-            assert_eq!(dot_chess.get(), false);
-            dot_chess.flip();
-            assert_eq!(dot_chess.get(), true);
+        pub fn get_whites_turn(&self) -> bool {
+            self.whites_turn
         }
     }
 }
