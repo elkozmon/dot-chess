@@ -1,4 +1,4 @@
-use crate::dot_chess::Error;
+use crate::{dot_chess::Error, event::Event};
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 
@@ -93,7 +93,13 @@ impl Rank {
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub enum Piece {
+pub enum Player {
+    White,
+    Black,
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum PieceKind {
     Pawn,
     Knight,
     Bishop,
@@ -173,7 +179,7 @@ impl Move {
 #[derive(Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(
     feature = "std",
-    derive(Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+    derive(Clone, Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
 )]
 pub struct Board {
     black: BitBoard,
@@ -200,55 +206,46 @@ impl Board {
         }
     }
 
-    /// Returns array of 64 8-bit integers representing current state of the board
-    /// in following square order: A1, A2, ..., B1, B2, ..., H8
-    ///
-    /// 0 - Empty square
-    /// 1 - Pawn
-    /// 2 - Knight
-    /// 3 - Bishop
-    /// 4 - Rook
-    /// 5 - Queen
-    /// 6 - King
-    ///
-    /// Negative integers represent black pieces
-    /// Positive integers represent white pieces
-    pub fn to_array(&self) -> [i8; 64] {
-        let mut board = [0; 64];
+    pub fn make_move(&mut self, move_obj: Move) -> Result<Vec<Event>, Error> {
+        todo!()
+    }
+
+    pub fn unmake_move(&mut self, move_obj: Move) -> Result<Vec<Event>, Error> {
+        todo!()
+    }
+
+    pub fn get_pieces(&self) -> Vec<(Player, PieceKind, Square)> {
+        let mut pieces = Vec::new();
 
         for i in 0..64 {
-            let mut square = 0;
-
-            let is_black = ((self.black >> i) & 1) == 1;
-            let is_white = ((self.white >> i) & 1) == 1;
-
-            if !(is_white || is_black) {
-                // Square is empty
-                continue;
-            }
-
-            if ((self.pawns >> i) & 1) == 1 {
-                square = 1;
-            } else if ((self.knights >> i) & 1) == 1 {
-                square = 2;
-            } else if ((self.bishops >> i) & 1) == 1 {
-                square = 3;
-            } else if ((self.rooks >> i) & 1) == 1 {
-                square = 4;
-            } else if ((self.queens >> i) & 1) == 1 {
-                square = 5;
-            } else if ((self.kings >> i) & 1) == 1 {
-                square = 6;
-            }
-
-            if is_black {
-                board[i] = -square;
+            let player = if (self.white & (1 << i)) != 0 {
+                Player::White
+            } else if (self.black & (1 << i)) != 0 {
+                Player::Black
             } else {
-                board[i] = square;
-            }
+                continue;
+            };
+
+            let square = Square::from_index(i);
+
+            let piece = if (self.pawns & (1 << i)) != 0 {
+                PieceKind::Pawn
+            } else if (self.knights & (1 << i)) != 0 {
+                PieceKind::Knight
+            } else if (self.bishops & (1 << i)) != 0 {
+                PieceKind::Bishop
+            } else if (self.rooks & (1 << i)) != 0 {
+                PieceKind::Rook
+            } else if (self.queens & (1 << i)) != 0 {
+                PieceKind::Queen
+            } else {
+                PieceKind::King
+            };
+
+            pieces.push((player, piece, square));
         }
 
-        board
+        pieces
     }
 }
 
@@ -421,20 +418,44 @@ mod tests {
     }
 
     #[test]
-    fn board_to_array() {
+    fn board_get_pieces() {
         let board = Board::default();
 
         assert_eq!(
-            board.to_array(),
-            [
-                4, 2, 3, 5, 6, 3, 2, 4, //
-                1, 1, 1, 1, 1, 1, 1, 1, //
-                0, 0, 0, 0, 0, 0, 0, 0, //
-                0, 0, 0, 0, 0, 0, 0, 0, //
-                0, 0, 0, 0, 0, 0, 0, 0, //
-                0, 0, 0, 0, 0, 0, 0, 0, //
-                -1, -1, -1, -1, -1, -1, -1, -1, //
-                -4, -2, -3, -5, -6, -3, -2, -4
+            board.get_pieces(),
+            vec![
+                (Player::White, PieceKind::Rook, Square::from_index(0)),
+                (Player::White, PieceKind::Knight, Square::from_index(1)),
+                (Player::White, PieceKind::Bishop, Square::from_index(2)),
+                (Player::White, PieceKind::Queen, Square::from_index(3)),
+                (Player::White, PieceKind::King, Square::from_index(4)),
+                (Player::White, PieceKind::Bishop, Square::from_index(5)),
+                (Player::White, PieceKind::Knight, Square::from_index(6)),
+                (Player::White, PieceKind::Rook, Square::from_index(7)),
+                (Player::White, PieceKind::Pawn, Square::from_index(8)),
+                (Player::White, PieceKind::Pawn, Square::from_index(9)),
+                (Player::White, PieceKind::Pawn, Square::from_index(10)),
+                (Player::White, PieceKind::Pawn, Square::from_index(11)),
+                (Player::White, PieceKind::Pawn, Square::from_index(12)),
+                (Player::White, PieceKind::Pawn, Square::from_index(13)),
+                (Player::White, PieceKind::Pawn, Square::from_index(14)),
+                (Player::White, PieceKind::Pawn, Square::from_index(15)),
+                (Player::Black, PieceKind::Pawn, Square::from_index(48)),
+                (Player::Black, PieceKind::Pawn, Square::from_index(49)),
+                (Player::Black, PieceKind::Pawn, Square::from_index(50)),
+                (Player::Black, PieceKind::Pawn, Square::from_index(51)),
+                (Player::Black, PieceKind::Pawn, Square::from_index(52)),
+                (Player::Black, PieceKind::Pawn, Square::from_index(53)),
+                (Player::Black, PieceKind::Pawn, Square::from_index(54)),
+                (Player::Black, PieceKind::Pawn, Square::from_index(55)),
+                (Player::Black, PieceKind::Rook, Square::from_index(56)),
+                (Player::Black, PieceKind::Knight, Square::from_index(57)),
+                (Player::Black, PieceKind::Bishop, Square::from_index(58)),
+                (Player::Black, PieceKind::Queen, Square::from_index(59)),
+                (Player::Black, PieceKind::King, Square::from_index(60)),
+                (Player::Black, PieceKind::Bishop, Square::from_index(61)),
+                (Player::Black, PieceKind::Knight, Square::from_index(62)),
+                (Player::Black, PieceKind::Rook, Square::from_index(63)),
             ]
         );
     }

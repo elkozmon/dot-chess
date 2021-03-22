@@ -1,13 +1,18 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 mod board;
+mod event;
+mod zobrist;
 
 use ink_lang as ink;
 
 #[ink::contract]
 mod dot_chess {
 
-    use crate::board::{Board, Move, MoveFlags, Square, SquareIndex, MoveEncoded};
+    use crate::board::{
+        Board, Move, MoveEncoded, MoveFlags, PieceKind, Player, Square, SquareIndex,
+    };
+    use crate::zobrist::ZobristHash;
     use ink_storage::collections::SmallVec;
     use scale::{Decode, Encode};
 
@@ -29,8 +34,8 @@ mod dot_chess {
         whites_turn: bool,
         /// Halfmove clock
         halfmove_clock: u8,
-        /// History of moves up to `halfmove_clock` long
-        move_history: SmallVec<MoveEncoded, 50>
+        /// Board history of up to 100 states
+        board_history: SmallVec<ZobristHash, 100>,
     }
 
     impl DotChess {
@@ -43,11 +48,11 @@ mod dot_chess {
                 board: ink_storage::Pack::new(Board::default()),
                 whites_turn: true,
                 halfmove_clock: 0,
-                move_history: SmallVec::new()
+                board_history: SmallVec::new(),
             }
         }
 
-        /// Returns array of 64 8-bit integers representing current state of the board 
+        /// Returns array of 64 8-bit integers representing current state of the board
         /// in following square order: A1, A2, ..., B1, B2, ..., H8
         ///
         /// 0 - Empty square
@@ -60,8 +65,32 @@ mod dot_chess {
         ///
         /// Negative integers represent black pieces
         /// Positive integers represent white pieces
+        #[ink(message)]
         pub fn get_board(&self) -> [i8; 64] {
-            self.board.to_array()
+            let mut board = [0; 64];
+
+            self.board
+                .get_pieces()
+                .iter()
+                .map(|(player, piece, square)| {
+                    let n = match piece {
+                        PieceKind::Pawn => 1,
+                        PieceKind::Knight => 2,
+                        PieceKind::Bishop => 3,
+                        PieceKind::Rook => 4,
+                        PieceKind::Queen => 5,
+                        PieceKind::King => 6,
+                    };
+
+                    let n = match player {
+                        Player::White => n,
+                        Player::Black => -n,
+                    };
+
+                    board[square.to_index() as usize] = n;
+                });
+
+            board
         }
 
         /// Makes a move
