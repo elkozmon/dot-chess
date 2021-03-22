@@ -7,7 +7,8 @@ use ink_lang as ink;
 #[ink::contract]
 mod dot_chess {
 
-    use crate::board::{Board, Move, MoveFlags, Square, SquareIndex};
+    use crate::board::{Board, Move, MoveFlags, Square, SquareIndex, MoveEncoded};
+    use ink_storage::collections::SmallVec;
     use scale::{Decode, Encode};
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq, Copy, Clone)]
@@ -26,6 +27,10 @@ mod dot_chess {
         board: ink_storage::Pack<Board>,
         /// Is it whites turn?
         whites_turn: bool,
+        /// Halfmove clock
+        halfmove_clock: u8,
+        /// History of moves up to `halfmove_clock` long
+        move_history: SmallVec<MoveEncoded, 50>
     }
 
     impl DotChess {
@@ -37,6 +42,8 @@ mod dot_chess {
                 black,
                 board: ink_storage::Pack::new(Board::default()),
                 whites_turn: true,
+                halfmove_clock: 0,
+                move_history: SmallVec::new()
             }
         }
 

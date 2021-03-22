@@ -4,6 +4,7 @@ use scale::{Decode, Encode};
 
 pub type SquareIndex = u8;
 pub type MoveFlags = u8;
+pub type MoveEncoded = u16;
 type BitBoard = u64;
 
 const UNIVERSAL_SET: BitBoard = 0xffffffffffffffff;
@@ -148,7 +149,7 @@ impl Move {
         Self { from, to, flags }
     }
 
-    pub fn decode(encoded: u16) -> Self {
+    pub fn decode(encoded: MoveEncoded) -> Self {
         let flags = ((encoded >> 12) & 0b00001111) as u8;
         let from = ((encoded >> 6) & 0b00111111) as u8;
         let to = (encoded & 0b00111111) as u8;
@@ -160,7 +161,7 @@ impl Move {
         }
     }
 
-    pub fn encode(&self) -> u16 {
+    pub fn encode(&self) -> MoveEncoded {
         let flags = (self.flags as u16 & 0b00001111) << 12;
         let from = (self.from.to_index() as u16 & 0b00111111) << 6;
         let to = self.to.to_index() as u16 & 0b00111111;
