@@ -112,7 +112,11 @@ const ZOBRIST_KEYS: [u32; 781] = [
 pub struct ZobristHash(u32);
 
 impl ZobristHash {
-    pub fn new(board: Board, additional_events: Vec<Event>) -> Self {
+    pub fn new(board: &Board) -> Self {
+        todo!()
+    }
+
+    pub fn apply(&self, events: Vec<Event>) -> Self {
         todo!()
     }
 }

@@ -22,6 +22,8 @@ mod dot_chess {
         InvalidArgument,
     }
 
+    const BOARD_HISTORY_SIZE: usize = 100;
+
     #[ink(storage)]
     pub struct DotChess {
         /// Account playing as white
@@ -35,20 +37,26 @@ mod dot_chess {
         /// Halfmove clock
         halfmove_clock: u8,
         /// Board history of up to 100 states
-        board_history: SmallVec<ZobristHash, 100>,
+        board_history: SmallVec<ZobristHash, BOARD_HISTORY_SIZE>,
     }
 
     impl DotChess {
         /// Initiates new game
         #[ink(constructor)]
         pub fn new(white: AccountId, black: AccountId) -> Self {
+            let board = Board::default();
+
+            let board_history = SmallVec::new();
+            let zobrist_hash = ZobristHash::new(&board);
+            board_history.push(zobrist_hash);
+
             Self {
                 white,
                 black,
-                board: ink_storage::Pack::new(Board::default()),
+                board: ink_storage::Pack::new(board),
                 whites_turn: true,
                 halfmove_clock: 0,
-                board_history: SmallVec::new(),
+                board_history,
             }
         }
 
@@ -97,7 +105,7 @@ mod dot_chess {
         ///
         /// Returns true if move was successful
         #[ink(message)]
-        pub fn make_move(&self, from: SquareIndex, to: SquareIndex, flags: MoveFlags) -> bool {
+        pub fn make_move(&mut self, from: SquareIndex, to: SquareIndex, flags: MoveFlags) -> bool {
             let caller = self.env().caller();
 
             let account_in_turn = if self.whites_turn {
@@ -115,7 +123,20 @@ mod dot_chess {
 
             let m = Move::new(Square::from_index(from), Square::from_index(to), flags);
 
-            todo!("Update board");
+            match self.board.make_move(m) {
+                Ok(events) => {
+                    let new_hash = self.board_history.last().unwrap().apply(events);
+
+                    self.board_history.push(new_hash);
+                }
+                Err(_) => {
+                    todo!("Emit event");
+
+                    return false;
+                }
+            }
+
+            todo!("Check halfmove clock");
 
             true
         }

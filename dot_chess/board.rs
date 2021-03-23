@@ -3,12 +3,8 @@ use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 
 pub type SquareIndex = u8;
-pub type MoveFlags = u8;
 pub type MoveEncoded = u16;
 type BitBoard = u64;
-
-const UNIVERSAL_SET: BitBoard = 0xffffffffffffffff;
-const EMPTY_SET: BitBoard = 0;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum File {
@@ -144,6 +140,9 @@ impl Square {
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub struct MoveFlags(u8);
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub struct Move {
     from: Square,
     to: Square,
@@ -168,11 +167,54 @@ impl Move {
     }
 
     pub fn encode(&self) -> MoveEncoded {
-        let flags = (self.flags as u16 & 0b00001111) << 12;
+        let flags = (self.flags.0 as u16 & 0b00001111) << 12;
         let from = (self.from.to_index() as u16 & 0b00111111) << 6;
         let to = self.to.to_index() as u16 & 0b00111111;
 
         flags | from | to
+    }
+}
+
+#[derive(Encode, Decode, SpreadLayout, PackedLayout)]
+#[cfg_attr(
+    feature = "std",
+    derive(Clone, Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+)]
+pub struct BoardFlags(u16);
+
+impl BoardFlags {
+    pub fn new(
+        white_queen_castled: bool,
+        white_king_castled: bool,
+        black_queen_castled: bool,
+        black_king_castled: bool,
+        en_passant_open: [bool; 8],
+    ) -> Self {
+        todo!()
+    }
+
+    pub fn get_queen_castled(&self, player: Player) -> bool {
+        todo!()
+    }
+
+    pub fn set_queen_castled(&mut self, player: Player, castled: bool) -> () {
+        todo!()
+    }
+
+    pub fn get_king_castled(&self, player: Player) -> bool {
+        todo!()
+    }
+
+    pub fn set_king_castled(&mut self, player: Player, castled: bool) -> () {
+        todo!()
+    }
+
+    pub fn get_en_passant_open(&self, file: File) -> bool {
+        todo!()
+    }
+
+    pub fn set_en_passant_open(&mut self, file: File, open: bool) -> () {
+        todo!()
     }
 }
 
@@ -190,10 +232,13 @@ pub struct Board {
     bishops: BitBoard,
     knights: BitBoard,
     pawns: BitBoard,
+    flags: BoardFlags,
 }
 
 impl Board {
     pub fn default() -> Self {
+        let flags = BoardFlags::new(false, false, false, false, [false; 8]);
+
         Self {
             black: 0xffff000000000000,
             white: 0xffff,
@@ -203,6 +248,7 @@ impl Board {
             bishops: 0x2400000000000024,
             knights: 0x4200000000000042,
             pawns: 0xff00000000ff00,
+            flags,
         }
     }
 

@@ -1,9 +1,11 @@
 use crate::board::{PieceKind, Player, Rank, Square};
 
 pub enum Event {
-    FlipPieceOnSquare(Player, PieceKind, Square),
-    FlipPlayerTurn,
-    FlipQueenCastling(Player),
-    FlipKingCastling(Player),
-    FlipEnPassant(Player, Rank),
+    PieceLeftSquare(Player, PieceKind, Square),
+    PieceEnteredSquare(Player, PieceKind, Square),
+    PlayersTurn(Player),
+    QueenCastled(Player),
+    KingCastled(Player),
+    EnPassantOpened(Square),
+    EnPassantClosed(Square),
 }
