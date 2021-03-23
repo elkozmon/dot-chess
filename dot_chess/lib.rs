@@ -9,9 +9,7 @@ use ink_lang as ink;
 #[ink::contract]
 mod dot_chess {
 
-    use crate::board::{
-        Board, Move, MoveEncoded, MoveFlags, PieceKind, Player, Square, SquareIndex,
-    };
+    use crate::board::{Board, Piece, Player, Ply, PlyFlags, Square, SquareIndex};
     use crate::zobrist::ZobristHash;
     use ink_storage::collections::SmallVec;
     use scale::{Decode, Encode};
@@ -46,7 +44,7 @@ mod dot_chess {
         pub fn new(white: AccountId, black: AccountId) -> Self {
             let board = Board::default();
 
-            let board_history = SmallVec::new();
+            let mut board_history = SmallVec::new();
             let zobrist_hash = ZobristHash::new(&board);
             board_history.push(zobrist_hash);
 
@@ -77,26 +75,23 @@ mod dot_chess {
         pub fn get_board(&self) -> [i8; 64] {
             let mut board = [0; 64];
 
-            self.board
-                .get_pieces()
-                .iter()
-                .map(|(player, piece, square)| {
-                    let n = match piece {
-                        PieceKind::Pawn => 1,
-                        PieceKind::Knight => 2,
-                        PieceKind::Bishop => 3,
-                        PieceKind::Rook => 4,
-                        PieceKind::Queen => 5,
-                        PieceKind::King => 6,
-                    };
+            for (player, piece, square) in self.board.get_pieces().iter() {
+                let n = match piece {
+                    Piece::Pawn => 1,
+                    Piece::Knight => 2,
+                    Piece::Bishop => 3,
+                    Piece::Rook => 4,
+                    Piece::Queen => 5,
+                    Piece::King => 6,
+                };
 
-                    let n = match player {
-                        Player::White => n,
-                        Player::Black => -n,
-                    };
+                let n = match player {
+                    Player::White => n,
+                    Player::Black => -n,
+                };
 
-                    board[square.to_index() as usize] = n;
-                });
+                board[square.to_index() as usize] = n;
+            }
 
             board
         }
@@ -105,7 +100,7 @@ mod dot_chess {
         ///
         /// Returns true if move was successful
         #[ink(message)]
-        pub fn make_move(&mut self, from: SquareIndex, to: SquareIndex, flags: MoveFlags) -> bool {
+        pub fn make_move(&mut self, from: SquareIndex, to: SquareIndex, flags: PlyFlags) -> bool {
             let caller = self.env().caller();
 
             let account_in_turn = if self.whites_turn {
@@ -121,7 +116,7 @@ mod dot_chess {
                 return false;
             }
 
-            let m = Move::new(Square::from_index(from), Square::from_index(to), flags);
+            let m = Ply::new(Square::from_index(from), Square::from_index(to), flags);
 
             match self.board.make_move(m) {
                 Ok(events) => {
@@ -137,6 +132,10 @@ mod dot_chess {
             }
 
             todo!("Check halfmove clock");
+            if self.board_history.len() == self.board_history.capacity() {
+                // Draw
+                todo!("Emit event")
+            }
 
             true
         }

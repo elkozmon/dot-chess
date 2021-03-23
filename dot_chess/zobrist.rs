@@ -1,4 +1,4 @@
-use crate::board::{Board, PieceKind, Player, Rank};
+use crate::board::Board;
 use crate::event::Event;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};

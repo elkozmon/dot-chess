@@ -1,8 +1,8 @@
-use crate::board::{PieceKind, Player, Rank, Square};
+use crate::board::{Square, Piece, Player};
 
 pub enum Event {
-    PieceLeftSquare(Player, PieceKind, Square),
-    PieceEnteredSquare(Player, PieceKind, Square),
+    PieceLeftSquare(Player, Piece, Square),
+    PieceEnteredSquare(Player, Piece, Square),
     PlayersTurn(Player),
     QueenCastled(Player),
     KingCastled(Player),
