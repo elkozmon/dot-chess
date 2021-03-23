@@ -1,11 +1,11 @@
-use crate::board::{Square, Piece, Player};
+use crate::board::{Square, Piece, Side};
 
 pub enum Event {
-    PieceLeftSquare(Player, Piece, Square),
-    PieceEnteredSquare(Player, Piece, Square),
-    PlayersTurn(Player),
-    QueenCastled(Player),
-    KingCastled(Player),
+    PieceLeftSquare(Side, Piece, Square),
+    PieceEnteredSquare(Side, Piece, Square),
+    NextTurn(Side),
+    QueenCastlingRightLost(Side),
+    KingCastlingRightLost(Side),
     EnPassantOpened(Square),
     EnPassantClosed(Square),
 }

@@ -9,8 +9,11 @@ use ink_lang as ink;
 #[ink::contract]
 mod dot_chess {
 
-    use crate::board::{Board, Piece, Player, Ply, PlyFlags, Square, SquareIndex};
-    use crate::zobrist::ZobristHash;
+    use crate::{
+        board::{Board, Flags as BoardFlags, Piece, Ply, PlyFlags, Side, Square, SquareIndex},
+        event::Event,
+        zobrist::ZobristHash,
+    };
     use ink_storage::collections::SmallVec;
     use scale::{Decode, Encode};
 
@@ -18,6 +21,7 @@ mod dot_chess {
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum Error {
         InvalidArgument,
+        InvalidCaller,
     }
 
     const BOARD_HISTORY_SIZE: usize = 100;
@@ -30,10 +34,6 @@ mod dot_chess {
         black: AccountId,
         /// Chess board
         board: ink_storage::Pack<Board>,
-        /// Is it whites turn?
-        whites_turn: bool,
-        /// Halfmove clock
-        halfmove_clock: u8,
         /// Board history of up to 100 states
         board_history: SmallVec<ZobristHash, BOARD_HISTORY_SIZE>,
     }
@@ -52,30 +52,45 @@ mod dot_chess {
                 white,
                 black,
                 board: ink_storage::Pack::new(board),
-                whites_turn: true,
-                halfmove_clock: 0,
                 board_history,
             }
         }
 
-        /// Returns array of 64 8-bit integers representing current state of the board
-        /// in following square order: A1, A2, ..., B1, B2, ..., H8
+        /// Returns array of 64 8-bit integers describing positions on the board, and a unsigned 16-bit integer with game state flags
         ///
-        /// 0 - Empty square
-        /// 1 - Pawn
-        /// 2 - Knight
-        /// 3 - Bishop
-        /// 4 - Rook
-        /// 5 - Queen
-        /// 6 - King
+        /// Positions are described in order of squares from A1, A2, ..., B1, B2, ... H8 and encoded using these codes:
         ///
-        /// Negative integers represent black pieces
+        ///   0 - Empty square
+        ///   1 - Pawn
+        ///   2 - Knight
+        ///   3 - Bishop
+        ///   4 - Rook
+        ///   5 - Queen
+        ///   6 - King
+        ///
         /// Positive integers represent white pieces
+        /// Negative integers represent black pieces
+        ///
+        /// The unsined 16-bit integer is a game state bit mask:
+        ///
+        ///   1 << 0  En passant open at file A
+        ///   1 << 1  En passant open at file B
+        ///   1 << 2  En passant open at file C
+        ///   1 << 3  En passant open at file D
+        ///   1 << 4  En passant open at file E
+        ///   1 << 5  En passant open at file F
+        ///   1 << 6  En passant open at file G
+        ///   1 << 7  En passant open at file H
+        ///   1 << 8  White Queen Castling Right
+        ///   1 << 9  White King Castling Right
+        ///   1 << 10 Black Queen Castling Right
+        ///   1 << 11 Black King Castling Right
+        ///   1 << 12 Whites Turn
         #[ink(message)]
-        pub fn get_board(&self) -> [i8; 64] {
-            let mut board = [0; 64];
+        pub fn get_board(&self) -> ([i8; 64], &BoardFlags) {
+            let mut board = [0i8; 64];
 
-            for (player, piece, square) in self.board.get_pieces().iter() {
+            for (side, piece, square) in self.board.get_pieces().iter() {
                 let n = match piece {
                     Piece::Pawn => 1,
                     Piece::Knight => 2,
@@ -85,15 +100,41 @@ mod dot_chess {
                     Piece::King => 6,
                 };
 
-                let n = match player {
-                    Player::White => n,
-                    Player::Black => -n,
+                let n = match side {
+                    Side::White => n,
+                    Side::Black => -n,
                 };
 
                 board[square.to_index() as usize] = n;
             }
 
-            board
+            let flags = self.board.get_flags();
+
+            (board, flags)
+        }
+
+        fn _make_move(
+            &mut self,
+            from: SquareIndex,
+            to: SquareIndex,
+            flags: PlyFlags,
+        ) -> Result<Vec<Event>, Error> {
+            let caller = self.env().caller();
+
+            // Assert it's callers turn
+            let account_in_turn = if self.board.get_whites_turn() {
+                self.white
+            } else {
+                self.black
+            };
+
+            if caller != account_in_turn {
+                return Err(Error::InvalidCaller);
+            }
+
+            let ply = Ply::new(Square::from_index(from), Square::from_index(to), flags);
+
+            Ok(self.board.make_move(ply)?)
         }
 
         /// Makes a move
@@ -101,49 +142,24 @@ mod dot_chess {
         /// Returns true if move was successful
         #[ink(message)]
         pub fn make_move(&mut self, from: SquareIndex, to: SquareIndex, flags: PlyFlags) -> bool {
-            let caller = self.env().caller();
-
-            let account_in_turn = if self.whites_turn {
-                self.white
-            } else {
-                self.black
-            };
-
-            // Only player in turn is allowed to call this
-            if caller != account_in_turn {
-                todo!("Emit event");
-
-                return false;
-            }
-
-            let m = Ply::new(Square::from_index(from), Square::from_index(to), flags);
-
-            match self.board.make_move(m) {
+            match self._make_move(from, to, flags) {
                 Ok(events) => {
                     let new_hash = self.board_history.last().unwrap().apply(events);
 
                     self.board_history.push(new_hash);
+
+                    if self.board_history.len() == self.board_history.capacity() {
+                        // Draw
+                    }
+
+                    true
                 }
-                Err(_) => {
+                Err(error) => {
                     todo!("Emit event");
 
-                    return false;
+                    false
                 }
             }
-
-            todo!("Check halfmove clock");
-            if self.board_history.len() == self.board_history.capacity() {
-                // Draw
-                todo!("Emit event")
-            }
-
-            true
-        }
-
-        /// Returns true if it's whites turn, false otherwise
-        #[ink(message)]
-        pub fn get_whites_turn(&self) -> bool {
-            self.whites_turn
         }
     }
 }

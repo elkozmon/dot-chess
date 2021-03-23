@@ -1,4 +1,3 @@
-use super::BitBoard;
 use crate::board::Error;
 
 pub type SquareIndex = u8;
@@ -16,6 +15,17 @@ pub enum File {
 }
 
 impl File {
+    pub const VARIANTS: [File; 8] = [
+        File::A,
+        File::B,
+        File::C,
+        File::D,
+        File::E,
+        File::F,
+        File::G,
+        File::H,
+    ];
+
     pub fn to_index(&self) -> u8 {
         match self {
             Self::A => 0,
@@ -107,12 +117,12 @@ impl Square {
         8 * self.rank.to_index() + self.file.to_index()
     }
 
-    pub fn file(&self) -> File {
-        self.file
+    pub fn file(&self) -> &File {
+        &self.file
     }
 
-    pub fn rank(&self) -> Rank {
-        self.rank
+    pub fn rank(&self) -> &Rank {
+        &self.rank
     }
 }
 
@@ -132,8 +142,9 @@ mod tests {
         let index = 9u8;
         let square = Square::from_index(index);
 
-        assert_eq!(square.file(), File::B);
-        assert_eq!(square.rank(), Rank::_2);
+        
+        assert_eq!(*square.file(), File::B);
+        assert_eq!(*square.rank(), Rank::_2);
     }
 
     #[test]

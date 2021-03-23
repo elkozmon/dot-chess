@@ -1,4 +1,4 @@
-use crate::board::Board;
+use crate::board::{Board, File, Piece, Side, Square};
 use crate::event::Event;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
@@ -112,11 +112,219 @@ const ZOBRIST_KEYS: [u32; 781] = [
 pub struct ZobristHash(u32);
 
 impl ZobristHash {
+    const WHITE_TURN_HASH_KEY_INDEX: usize = 780;
+
+    fn get_piece_hash_key_index(side: &Side, piece: &Piece, square: &Square) -> usize {
+        let mut index: usize = match side {
+            Side::White => 0,
+            Side::Black => 384,
+        };
+
+        index += 64
+            * match piece {
+                Piece::Pawn => 0,
+                Piece::Knight => 1,
+                Piece::Bishop => 2,
+                Piece::Rook => 3,
+                Piece::Queen => 4,
+                Piece::King => 5,
+            };
+
+        index += square.to_index() as usize;
+
+        index
+    }
+
+    fn get_en_passant_hash_key_index(file: &File) -> usize {
+        768 + file.to_index() as usize
+    }
+
+    fn get_queen_castling_right_hash_key_index(side: &Side) -> usize {
+        match side {
+            Side::White => 776,
+            Side::Black => 777,
+        }
+    }
+
+    fn get_king_castling_right_hash_key_index(side: &Side) -> usize {
+        match side {
+            Side::White => 778,
+            Side::Black => 779,
+        }
+    }
+}
+
+impl ZobristHash {
     pub fn new(board: &Board) -> Self {
-        todo!()
+        let mut hash = 0;
+
+        for (ref side, ref piece, ref square) in board.get_pieces() {
+            let hash_key_index = Self::get_piece_hash_key_index(side, piece, square);
+            let hash_key = ZOBRIST_KEYS[hash_key_index];
+            hash ^= hash_key;
+        }
+
+        let flags = board.get_flags();
+
+        for file in File::VARIANTS.iter() {
+            if flags.get_en_passant_open(file) {
+                let hash_key_index = Self::get_en_passant_hash_key_index(file);
+                let hash_key = ZOBRIST_KEYS[hash_key_index];
+                hash ^= hash_key;
+            }
+        }
+
+        for side in Side::VARIANTS.iter() {
+            if flags.get_queen_castling_right(side) {
+                let hash_key_index = Self::get_queen_castling_right_hash_key_index(side);
+                let hash_key = ZOBRIST_KEYS[hash_key_index];
+                hash ^= hash_key;
+            }
+
+            if flags.get_king_castling_right(side) {
+                let hash_key_index = Self::get_king_castling_right_hash_key_index(side);
+                let hash_key = ZOBRIST_KEYS[hash_key_index];
+                hash ^= hash_key;
+            }
+        }
+
+        if flags.get_whites_turn() {
+            hash ^= ZOBRIST_KEYS[Self::WHITE_TURN_HASH_KEY_INDEX];
+        }
+
+        ZobristHash(hash)
     }
 
     pub fn apply(&self, events: Vec<Event>) -> Self {
-        todo!()
+        let mut hash = self.0;
+
+        for event in events {
+            match event {
+                Event::PieceLeftSquare(ref side, ref piece, ref square)
+                | Event::PieceEnteredSquare(ref side, ref piece, ref square) => {
+                    let hash_key_index = Self::get_piece_hash_key_index(side, piece, square);
+                    let hash_key = ZOBRIST_KEYS[hash_key_index];
+                    hash ^= hash_key;
+                }
+                Event::NextTurn(Side::Black) => {}
+                Event::NextTurn(Side::White) => {
+                    hash ^= ZOBRIST_KEYS[Self::WHITE_TURN_HASH_KEY_INDEX];
+                }
+                Event::QueenCastlingRightLost(ref side) => {
+                    let hash_key_index = Self::get_queen_castling_right_hash_key_index(side);
+                    let hash_key = ZOBRIST_KEYS[hash_key_index];
+                    hash ^= hash_key;
+                }
+                Event::KingCastlingRightLost(ref side) => {
+                    let hash_key_index = Self::get_king_castling_right_hash_key_index(side);
+                    let hash_key = ZOBRIST_KEYS[hash_key_index];
+                    hash ^= hash_key;
+                }
+                Event::EnPassantOpened(ref square) | Event::EnPassantClosed(ref square) => {
+                    let hash_key_index = Self::get_en_passant_hash_key_index(square.file());
+                    let hash_key = ZOBRIST_KEYS[hash_key_index];
+                    hash ^= hash_key;
+                }
+            }
+        }
+
+        ZobristHash(hash)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ZobristHash;
+    use crate::board::{File, Piece, Rank, Side, Square};
+
+    #[test]
+    fn white_pawn_a1_hash_key_index() {
+        let index = ZobristHash::get_piece_hash_key_index(
+            &Side::White,
+            &Piece::Pawn,
+            &Square::new(File::A, Rank::_1),
+        );
+
+        assert_eq!(index, 0);
+    }
+
+    #[test]
+    fn white_king_h8_hash_key_index() {
+        let index = ZobristHash::get_piece_hash_key_index(
+            &Side::White,
+            &Piece::King,
+            &Square::new(File::H, Rank::_8),
+        );
+
+        assert_eq!(index, 383);
+    }
+
+    #[test]
+    fn black_pawn_a1_hash_key_index() {
+        let index = ZobristHash::get_piece_hash_key_index(
+            &Side::Black,
+            &Piece::Pawn,
+            &Square::new(File::A, Rank::_1),
+        );
+
+        assert_eq!(index, 384);
+    }
+
+    #[test]
+    fn black_king_h8_hash_key_index() {
+        let index = ZobristHash::get_piece_hash_key_index(
+            &Side::Black,
+            &Piece::King,
+            &Square::new(File::H, Rank::_8),
+        );
+
+        assert_eq!(index, 767);
+    }
+
+    #[test]
+    fn en_passant_file_a_hash_key_index() {
+        let index = ZobristHash::get_en_passant_hash_key_index(&File::A);
+
+        assert_eq!(index, 768);
+    }
+
+    #[test]
+    fn en_passant_file_h_hash_key_index() {
+        let index = ZobristHash::get_en_passant_hash_key_index(&File::H);
+
+        assert_eq!(index, 775);
+    }
+
+    #[test]
+    fn white_queen_castling_right_hash_key_index() {
+        let index = ZobristHash::get_queen_castling_right_hash_key_index(&Side::White);
+
+        assert_eq!(index, 776);
+    }
+
+    #[test]
+    fn black_queen_castling_right_hash_key_index() {
+        let index = ZobristHash::get_queen_castling_right_hash_key_index(&Side::Black);
+
+        assert_eq!(index, 777);
+    }
+
+    #[test]
+    fn white_king_castling_right_hash_key_index() {
+        let index = ZobristHash::get_king_castling_right_hash_key_index(&Side::White);
+
+        assert_eq!(index, 778);
+    }
+
+    #[test]
+    fn black_king_castling_right_hash_key_index() {
+        let index = ZobristHash::get_king_castling_right_hash_key_index(&Side::Black);
+
+        assert_eq!(index, 779);
+    }
+
+    #[test]
+    fn whites_turn_hash_key_index() {
+        assert_eq!(ZobristHash::WHITE_TURN_HASH_KEY_INDEX, 780);
     }
 }

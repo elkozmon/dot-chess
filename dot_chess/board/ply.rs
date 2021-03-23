@@ -1,5 +1,4 @@
 use super::square::Square;
-use super::Board;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 
@@ -24,11 +23,11 @@ type PlyEncoded = u16;
 #[derive(Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(
     feature = "std",
-    derive(Copy, Clone, Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+    derive(Clone, Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
 )]
 pub struct Flags(u8);
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Ply {
     from: Square,
     to: Square,
