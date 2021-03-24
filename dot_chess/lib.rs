@@ -106,7 +106,7 @@ mod dot_chess {
                     Side::Black => -n,
                 };
 
-                board[square.to_index() as usize] = n;
+                board[square.index() as usize] = n;
             }
 
             let flags = self.board.get_flags();

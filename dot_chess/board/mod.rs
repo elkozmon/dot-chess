@@ -67,45 +67,45 @@ impl Flags {
         self.0 = (self.0 & !(1u16 << bit)) | ((to as u16) << bit);
     }
 
-    fn get_queen_castling_right_index(side: &Side) -> usize {
+    fn get_queen_castling_right_index(side: Side) -> usize {
         match side {
             Side::White => 8,
             Side::Black => 10,
         }
     }
 
-    fn get_king_castling_right_index(side: &Side) -> usize {
+    fn get_king_castling_right_index(side: Side) -> usize {
         match side {
             Side::White => 9,
             Side::Black => 11,
         }
     }
 
-    fn get_en_passant_index(file: &File) -> usize {
-        file.to_index() as usize
+    fn get_en_passant_index(file: File) -> usize {
+        file.index() as usize
     }
 
-    pub fn get_queen_castling_right(&self, side: &Side) -> bool {
+    pub fn get_queen_castling_right(&self, side: Side) -> bool {
         self.get_bit(Self::get_queen_castling_right_index(side))
     }
 
-    pub fn set_queen_castling_right(&mut self, side: &Side, castled: bool) -> () {
+    pub fn set_queen_castling_right(&mut self, side: Side, castled: bool) -> () {
         self.set_bit(Self::get_queen_castling_right_index(side), castled)
     }
 
-    pub fn get_king_castling_right(&self, side: &Side) -> bool {
+    pub fn get_king_castling_right(&self, side: Side) -> bool {
         self.get_bit(Self::get_king_castling_right_index(side))
     }
 
-    pub fn set_king_castling_right(&mut self, side: &Side, value: bool) -> () {
+    pub fn set_king_castling_right(&mut self, side: Side, value: bool) -> () {
         self.set_bit(Self::get_king_castling_right_index(side), value)
     }
 
-    pub fn get_en_passant_open(&self, file: &File) -> bool {
+    pub fn get_en_passant_open(&self, file: File) -> bool {
         self.get_bit(Self::get_en_passant_index(file))
     }
 
-    pub fn set_en_passant_open(&mut self, file: &File, value: bool) -> () {
+    pub fn set_en_passant_open(&mut self, file: File, value: bool) -> () {
         self.set_bit(Self::get_en_passant_index(file), value)
     }
 
@@ -137,7 +137,7 @@ pub struct Board {
 
 impl Board {
     fn get_square_on_bitboard(square: &Square) -> BitBoard {
-        1 << square.to_index()
+        1 << square.index()
     }
 }
 
