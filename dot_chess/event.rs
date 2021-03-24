@@ -8,4 +8,8 @@ pub enum Event {
     KingCastlingRightLost(Side),
     EnPassantOpened(Square),
     EnPassantClosed(Square),
+    Stalemate,
+    InsufficientMatingMaterial,
+    Check(Side),
+    Checkmate(Side)
 }

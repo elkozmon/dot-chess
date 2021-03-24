@@ -160,10 +160,6 @@ impl Board {
         todo!()
     }
 
-    pub fn unmake_move(&mut self, ply: Ply) -> Result<Vec<Event>, Error> {
-        todo!()
-    }
-
     pub fn get_pieces(&self) -> Vec<(Side, Piece, Square)> {
         let mut pieces = Vec::new();
 

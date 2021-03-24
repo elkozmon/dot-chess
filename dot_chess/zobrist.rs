@@ -206,7 +206,6 @@ impl ZobristHash {
                     let hash_key = ZOBRIST_KEYS[hash_key_index];
                     hash ^= hash_key;
                 }
-                Event::NextTurn(Side::Black) => {}
                 Event::NextTurn(Side::White) => {
                     hash ^= ZOBRIST_KEYS[Self::WHITE_TURN_HASH_KEY_INDEX];
                 }
@@ -225,6 +224,7 @@ impl ZobristHash {
                     let hash_key = ZOBRIST_KEYS[hash_key_index];
                     hash ^= hash_key;
                 }
+                _ => {}
             }
         }
 

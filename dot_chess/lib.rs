@@ -22,6 +22,7 @@ mod dot_chess {
     pub enum Error {
         InvalidArgument,
         InvalidCaller,
+        IllegalMove,
     }
 
     const BOARD_HISTORY_SIZE: usize = 100;
@@ -113,7 +114,7 @@ mod dot_chess {
             (board, flags)
         }
 
-        fn _make_move(
+        fn try_make_move(
             &mut self,
             from: SquareIndex,
             to: SquareIndex,
@@ -142,7 +143,7 @@ mod dot_chess {
         /// Returns true if move was successful
         #[ink(message)]
         pub fn make_move(&mut self, from: SquareIndex, to: SquareIndex, flags: PlyFlags) -> bool {
-            match self._make_move(from, to, flags) {
+            match self.try_make_move(from, to, flags) {
                 Ok(events) => {
                     let new_hash = self.board_history.last().unwrap().apply(events);
 
