@@ -1,7 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 mod board;
-mod event;
 mod zobrist;
 
 use ink_lang as ink;
@@ -9,11 +8,10 @@ use ink_lang as ink;
 #[ink::contract]
 mod dot_chess {
 
-    use crate::{
-        board::{Board, Flags as BoardFlags, Piece, Ply, PlyFlags, Side, Square, SquareIndex},
-        event::Event,
-        zobrist::ZobristHash,
+    use crate::board::{
+        Board, Event, Flags as BoardFlags, Piece, Ply, PlyFlags, Side, Square, SquareIndex,
     };
+    use crate::zobrist::ZobristHash;
     use ink_storage::Vec;
     use scale::{Decode, Encode};
 

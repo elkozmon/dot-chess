@@ -1,7 +1,6 @@
-use crate::board::{Board, File, Piece, Side, Square};
-use crate::event::Event;
-use ink_storage::Vec;
+use crate::board::{Board, Event, File, Piece, Side, Square};
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
+use ink_storage::Vec;
 use scale::{Decode, Encode};
 
 const ZOBRIST_KEYS: [u32; 781] = [

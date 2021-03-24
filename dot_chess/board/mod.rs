@@ -1,11 +1,13 @@
+mod event;
 mod ply;
 mod square;
 
-use crate::{dot_chess::Error, event::Event};
+use crate::dot_chess::Error;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use ink_storage::Vec;
 use scale::{Decode, Encode};
 
+pub use event::Event;
 pub use ply::{Flags as PlyFlags, Ply};
 pub use square::{File, Rank, Square, SquareIndex};
 
