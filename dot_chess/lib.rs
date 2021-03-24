@@ -14,7 +14,7 @@ mod dot_chess {
         event::Event,
         zobrist::ZobristHash,
     };
-    use ink_storage::collections::SmallVec;
+    use ink_storage::Vec;
     use scale::{Decode, Encode};
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq, Copy, Clone)]
@@ -25,8 +25,6 @@ mod dot_chess {
         IllegalMove,
     }
 
-    const BOARD_HISTORY_SIZE: usize = 100;
-
     #[ink(storage)]
     pub struct DotChess {
         /// Account playing as white
@@ -36,7 +34,7 @@ mod dot_chess {
         /// Chess board
         board: ink_storage::Pack<Board>,
         /// Board history of up to 100 states
-        board_history: SmallVec<ZobristHash, BOARD_HISTORY_SIZE>,
+        board_history: Vec<ZobristHash>,
     }
 
     impl DotChess {
@@ -45,7 +43,7 @@ mod dot_chess {
         pub fn new(white: AccountId, black: AccountId) -> Self {
             let board = Board::default();
 
-            let mut board_history = SmallVec::new();
+            let mut board_history = Vec::new();
             let zobrist_hash = ZobristHash::new(&board);
             board_history.push(zobrist_hash);
 
@@ -88,7 +86,7 @@ mod dot_chess {
         ///   1 << 11 Black King Castling Right
         ///   1 << 12 Whites Turn
         #[ink(message)]
-        pub fn get_board(&self) -> ([i8; 64], &BoardFlags) {
+        pub fn get_board(&self) -> ([i8; 64], BoardFlags) {
             let mut board = [0i8; 64];
 
             for (side, piece, square) in self.board.get_pieces().iter() {
@@ -111,7 +109,7 @@ mod dot_chess {
 
             let flags = self.board.get_flags();
 
-            (board, flags)
+            (board, *flags)
         }
 
         fn try_make_move(
@@ -149,7 +147,7 @@ mod dot_chess {
 
                     self.board_history.push(new_hash);
 
-                    if self.board_history.len() == self.board_history.capacity() {
+                    if self.board_history.len() == 100 {
                         // Draw
                     }
 

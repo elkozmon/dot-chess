@@ -3,12 +3,17 @@ mod square;
 
 use crate::{dot_chess::Error, event::Event};
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
+use ink_storage::Vec;
 use scale::{Decode, Encode};
 
 pub use ply::{Flags as PlyFlags, Ply};
 pub use square::{File, Rank, Square, SquareIndex};
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
+#[cfg_attr(
+    feature = "std",
+    derive(Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+)]
 pub enum Side {
     White,
     Black,
@@ -18,7 +23,11 @@ impl Side {
     pub const VARIANTS: [Side; 2] = [Side::White, Side::Black];
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
+#[cfg_attr(
+    feature = "std",
+    derive(Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+)]
 pub enum Piece {
     Pawn,
     Knight,
@@ -43,10 +52,10 @@ pub enum Piece {
 /// 1 << 10 Black Queen Castling Right
 /// 1 << 11 Black King Castling Right
 /// 1 << 12 Whites Turn
-#[derive(Encode, Decode, SpreadLayout, PackedLayout)]
+#[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(
     feature = "std",
-    derive(Clone, Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+    derive(Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
 )]
 pub struct Flags(u16);
 
@@ -116,10 +125,10 @@ impl Flags {
     }
 }
 
-#[derive(Encode, Decode, SpreadLayout, PackedLayout)]
+#[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(
     feature = "std",
-    derive(Copy, Clone, Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+    derive(Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
 )]
 struct BitBoard(u64);
 
@@ -258,7 +267,7 @@ impl BitBoard {
         (self << 7) & Self::NOT_H_FILE
     }
 
-    pub fn get(self, index: u8) -> bool {
+    pub fn get(&self, index: u8) -> bool {
         ((self.0 >> index) & 1) == 1
     }
 }
@@ -300,7 +309,7 @@ impl Board {
             .get_piece(ply.from().index())
             .ok_or(Error::InvalidArgument)?;
 
-        if from_side != self.get_side_turn() {
+        if from_side as u8 != self.get_side_turn() as u8 {
             return Err(Error::InvalidArgument);
         }
 

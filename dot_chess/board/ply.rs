@@ -27,7 +27,11 @@ type PlyEncoded = u16;
 )]
 pub struct Flags(u8);
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Encode, Decode, SpreadLayout, PackedLayout)]
+#[cfg_attr(
+    feature = "std",
+    derive(Clone, Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+)]
 pub struct Ply {
     from: Square,
     to: Square,

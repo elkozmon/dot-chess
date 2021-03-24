@@ -1,5 +1,6 @@
 use crate::board::{Board, File, Piece, Side, Square};
 use crate::event::Event;
+use ink_storage::Vec;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 
@@ -158,8 +159,8 @@ impl ZobristHash {
     pub fn new(board: &Board) -> Self {
         let mut hash = 0;
 
-        for (side, piece, square) in board.get_pieces() {
-            let hash_key_index = Self::get_piece_hash_key_index(side, piece, square);
+        for (side, piece, square) in board.get_pieces().iter() {
+            let hash_key_index = Self::get_piece_hash_key_index(*side, *piece, *square);
             let hash_key = ZOBRIST_KEYS[hash_key_index];
             hash ^= hash_key;
         }
@@ -202,11 +203,11 @@ impl ZobristHash {
     pub fn apply(&self, events: Vec<Event>) -> Self {
         let mut hash = self.0;
 
-        for event in events {
+        for event in events.iter() {
             match event {
                 Event::PieceLeftSquare(side, piece, square)
                 | Event::PieceEnteredSquare(side, piece, square) => {
-                    let hash_key_index = Self::get_piece_hash_key_index(side, piece, square);
+                    let hash_key_index = Self::get_piece_hash_key_index(*side, *piece, *square);
                     let hash_key = ZOBRIST_KEYS[hash_key_index];
                     hash ^= hash_key;
                 }
@@ -214,12 +215,12 @@ impl ZobristHash {
                     hash ^= ZOBRIST_KEYS[Self::WHITE_TURN_HASH_KEY_INDEX];
                 }
                 Event::QueenCastlingRightLost(side) => {
-                    let hash_key_index = Self::get_queen_castling_right_hash_key_index(side);
+                    let hash_key_index = Self::get_queen_castling_right_hash_key_index(*side);
                     let hash_key = ZOBRIST_KEYS[hash_key_index];
                     hash ^= hash_key;
                 }
                 Event::KingCastlingRightLost(side) => {
-                    let hash_key_index = Self::get_king_castling_right_hash_key_index(side);
+                    let hash_key_index = Self::get_king_castling_right_hash_key_index(*side);
                     let hash_key = ZOBRIST_KEYS[hash_key_index];
                     hash ^= hash_key;
                 }

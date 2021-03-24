@@ -1,9 +1,14 @@
 use crate::board::Error;
+use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
+use scale::{Decode, Encode};
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-#[repr(u8)]
+#[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
+#[cfg_attr(
+    feature = "std",
+    derive(Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+)]
 pub enum File {
-    A = 0,
+    A,
     B,
     C,
     D,
@@ -26,7 +31,16 @@ impl File {
     ];
 
     pub fn index(&self) -> u8 {
-        *self as u8
+        match self {
+            Self::A => 0,
+            Self::B => 1,
+            Self::C => 2,
+            Self::D => 3,
+            Self::E => 4,
+            Self::F => 5,
+            Self::G => 6,
+            Self::H => 7,
+        }
     }
 
     pub fn from_index(index: u8) -> Result<Self, Error> {
@@ -44,10 +58,13 @@ impl File {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-#[repr(u8)]
+#[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
+#[cfg_attr(
+    feature = "std",
+    derive(Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+)]
 pub enum Rank {
-    _1 = 0,
+    _1,
     _2,
     _3,
     _4,
@@ -59,7 +76,16 @@ pub enum Rank {
 
 impl Rank {
     pub fn index(&self) -> u8 {
-        *self as u8
+        match self {
+            Self::_1 => 0,
+            Self::_2 => 1,
+            Self::_3 => 2,
+            Self::_4 => 3,
+            Self::_5 => 4,
+            Self::_6 => 5,
+            Self::_7 => 6,
+            Self::_8 => 7,
+        }
     }
 
     pub fn from_index(index: u8) -> Result<Self, Error> {
@@ -79,7 +105,11 @@ impl Rank {
 
 pub type SquareIndex = u8;
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
+#[cfg_attr(
+    feature = "std",
+    derive(Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+)]
 pub struct Square {
     index: SquareIndex,
     file: File,
