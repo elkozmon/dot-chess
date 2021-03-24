@@ -123,7 +123,7 @@ mod dot_chess {
             let caller = self.env().caller();
 
             // Assert it's callers turn
-            let account_in_turn = if self.board.get_whites_turn() {
+            let account_in_turn = if self.board.get_flags().get_whites_turn() {
                 self.white
             } else {
                 self.black

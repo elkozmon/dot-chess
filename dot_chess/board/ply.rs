@@ -39,6 +39,14 @@ impl Ply {
         Self { from, to, flags }
     }
 
+    pub fn from(&self) -> Square {
+        self.from
+    }
+
+    pub fn to(&self) -> Square {
+        self.to
+    }
+
     pub fn decode(encoded: PlyEncoded) -> Self {
         let flags = ((encoded >> 12) & 0b00001111) as u8;
         let flags = Flags(flags);
