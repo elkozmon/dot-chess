@@ -1,4 +1,5 @@
 mod bitboard;
+mod direction;
 mod event;
 mod file;
 mod piece;
@@ -15,6 +16,7 @@ use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use ink_storage::Vec;
 use scale::{Decode, Encode};
 
+pub use direction::Direction;
 pub use event::Event;
 pub use file::File;
 pub use piece::Piece;
@@ -129,6 +131,47 @@ pub struct Board {
 }
 
 impl Board {
+    pub fn new(pieces: Vec<(Side, Piece, Square)>, flags: Flags) -> Self {
+        let mut black = BitBoard::EMPTY;
+        let mut white = BitBoard::EMPTY;
+        let mut kings = BitBoard::EMPTY;
+        let mut queens = BitBoard::EMPTY;
+        let mut rooks = BitBoard::EMPTY;
+        let mut bishops = BitBoard::EMPTY;
+        let mut knights = BitBoard::EMPTY;
+        let mut pawns = BitBoard::EMPTY;
+
+        for (side, piece, square) in pieces.iter() {
+            let bitboard = BitBoard::square(square.index());
+
+            match side {
+                Side::White => white |= bitboard,
+                Side::Black => black |= bitboard,
+            };
+
+            match piece {
+                Piece::Pawn => pawns |= bitboard,
+                Piece::Knight => knights |= bitboard,
+                Piece::Bishop => bishops |= bitboard,
+                Piece::Rook => rooks |= bitboard,
+                Piece::Queen => queens |= bitboard,
+                Piece::King => kings |= bitboard,
+            };
+        }
+
+        Self {
+            black,
+            white,
+            kings,
+            queens,
+            rooks,
+            bishops,
+            knights,
+            pawns,
+            flags,
+        }
+    }
+
     pub fn default() -> Self {
         Self {
             black: 0xffff000000000000.into(),
@@ -175,8 +218,12 @@ impl Board {
 }
 
 impl Board {
+    fn occupied(&self) -> BitBoard {
+        self.black | self.white
+    }
+
     fn empty(&self) -> BitBoard {
-        !(self.black | self.white)
+        !self.occupied()
     }
 
     fn get_side_turn(&self) -> Side {
@@ -184,6 +231,18 @@ impl Board {
             true => Side::White,
             false => Side::Black,
         }
+    }
+
+    fn get_ray_attacks(&self, square_index: SquareIndex, direction: Direction) -> BitBoard {
+        let mut attacks = BitBoard::ray_mask(square_index, direction);
+        let blocker = attacks & self.occupied();
+
+        if blocker != BitBoard::EMPTY {
+            let square = blocker.bit_scan(direction.negative());
+            attacks ^= BitBoard::ray_mask(square, direction);
+        }
+
+        attacks
     }
 
     fn get_pseudo_legal_moves(&self) -> HashMap<(Side, Piece, Square), BitBoard> {
@@ -316,6 +375,44 @@ mod tests {
         let board = Board::default();
 
         assert_eq!(board.white, 0xffff.into());
+    }
+
+    #[test]
+    fn ray_attacks_sw_g5() {
+        let board = Board::default();
+        let square = Square::new(File::G, Rank::_5);
+
+        assert_eq!(
+            board.get_ray_attacks(square.index(), Direction::SouthWest),
+            0x20100800.into()
+        );
+    }
+
+    #[test]
+    fn ray_attacks_n_d5() {
+        let board = Board::default();
+        let square = Square::new(File::D, Rank::_5);
+
+        assert_eq!(
+            board.get_ray_attacks(square.index(), Direction::North),
+            0x8080000000000.into()
+        );
+    }
+
+    #[test]
+    fn ray_attacks_sw_h8() {
+        let pieces: Vec<(Side, Piece, Square)> =
+            vec![(Side::White, Piece::Rook, Square::new(File::A, Rank::_1))]
+                .into_iter()
+                .collect();
+
+        let board = Board::new(pieces, Flags::default());
+        let square = Square::new(File::H, Rank::_8);
+
+        assert_eq!(
+            board.get_ray_attacks(square.index(), Direction::SouthWest),
+            0x40201008040201.into()
+        );
     }
 
     #[test]
