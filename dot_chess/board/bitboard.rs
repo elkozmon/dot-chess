@@ -94,6 +94,35 @@ impl BitBoard {
         BitBoard(1 << square_index)
     }
 
+    // Sliding pieces
+    pub fn rank_mask(square_index: SquareIndex) -> Self {
+        Self(0xffu64) << (square_index & 56)
+    }
+
+    pub fn file_mask(square_index: SquareIndex) -> Self {
+        Self(0x0101010101010101u64) << (square_index & 7)
+    }
+
+    pub fn diagonal_mask(square_index: SquareIndex) -> Self {
+        let maindia = Self(0x8040201008040201u64);
+        let diag = 8 * (square_index & 7) - (square_index & 56);
+        let nort = -diag & (diag >> 31);
+        let sout = diag & (-diag >> 31);
+
+        (maindia >> sout) << nort
+    }
+
+    pub fn anti_diagonal_mask(square_index: SquareIndex) -> Self {
+        let maindia = Self(0x0102040810204080u64);
+        let diag = 56 - 8 * (square_index & 7) - (square_index & 56);
+        let nort = -diag & (diag >> 31);
+        let sout = diag & (-diag >> 31);
+
+        (maindia >> sout) << nort
+    }
+
+    // Knights
+
     pub fn knight_attacks(square_index: SquareIndex) -> Self {
         let square_index = square_index as i8;
 
@@ -107,6 +136,8 @@ impl BitBoard {
             .fold(Self::EMPTY, |l, r| l | r)
     }
 
+    // Kings
+
     pub fn king_attacks(square_index: SquareIndex) -> Self {
         let king = Self::square(square_index);
 
@@ -115,6 +146,8 @@ impl BitBoard {
 
         attacks ^ king
     }
+
+    // Pawns
 
     pub fn white_pawn_east_attacks(white_pawns: Self) -> Self {
         white_pawns.north_east_one()
