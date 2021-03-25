@@ -104,11 +104,8 @@ const ZOBRIST_KEYS: [u32; 781] = [
     3805793409, 1528232892, 610015325, 182281659, 1045836970,
 ];
 
-#[derive(Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(
-    feature = "std",
-    derive(Clone, Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
-)]
+#[derive(PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
+#[cfg_attr(feature = "std", derive(Debug, scale_info::TypeInfo, StorageLayout))]
 pub struct ZobristHash(u32);
 
 impl ZobristHash {
@@ -202,7 +199,7 @@ impl ZobristHash {
     pub fn apply(&self, events: Vec<Event>) -> Self {
         let mut hash = self.0;
 
-        for event in events.iter() {
+        for event in events.into_iter() {
             match event {
                 Event::PieceLeftSquare(side, piece, square)
                 | Event::PieceEnteredSquare(side, piece, square) => {

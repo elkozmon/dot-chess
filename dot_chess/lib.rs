@@ -15,7 +15,7 @@ mod dot_chess {
     use ink_storage::Vec;
     use scale::{Decode, Encode};
 
-    #[derive(Encode, Decode, Debug, PartialEq, Eq, Copy, Clone)]
+    #[derive(Encode, Decode, Debug, Copy, Clone)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum Error {
         InvalidArgument,

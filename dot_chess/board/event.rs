@@ -1,12 +1,9 @@
-use crate::board::{Square, Piece, Side};
-use scale::{Decode, Encode};
+use crate::board::{Piece, Side, Square};
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
+use scale::{Decode, Encode};
 
 #[derive(Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(
-    feature = "std",
-    derive(Clone, Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
-)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
 pub enum Event {
     PieceLeftSquare(Side, Piece, Square),
     PieceEnteredSquare(Side, Piece, Square),
@@ -18,5 +15,5 @@ pub enum Event {
     Stalemate,
     InsufficientMatingMaterial,
     Check(Side),
-    Checkmate(Side)
+    Checkmate(Side),
 }

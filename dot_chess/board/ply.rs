@@ -21,17 +21,11 @@ type PlyEncoded = u16;
 /// 14  1110  rook-promo capture
 /// 15  1111  queen-promo capture
 #[derive(Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(
-    feature = "std",
-    derive(Clone, Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
-)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
 pub struct Flags(u8);
 
 #[derive(Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(
-    feature = "std",
-    derive(Clone, Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
-)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
 pub struct Ply {
     from: Square,
     to: Square,
