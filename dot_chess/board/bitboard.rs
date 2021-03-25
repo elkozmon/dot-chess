@@ -93,44 +93,52 @@ impl BitBoard {
     const RANK_4: BitBoard = BitBoard(0x00000000ff000000);
     const RANK_5: BitBoard = BitBoard(0x000000ff00000000);
 
+    // General
+
     pub fn square(square_index: SquareIndex) -> Self {
         BitBoard(1 << square_index)
     }
 
-    // Sliding pieces
-
     pub fn rank_mask(square_index: SquareIndex) -> Self {
-        let square = BitBoard::square(square_index).0;
-
-        Self(0xffu64) << (square & 56u64) as i32
+        Self(0xffu64) << (square_index as i32 & 56)
     }
 
     pub fn file_mask(square_index: SquareIndex) -> Self {
-        let square = BitBoard::square(square_index).0;
-
-        Self(0x0101010101010101u64) << (square & 7u64) as i32
+        Self(0x0101010101010101u64) << (square_index as i32 & 7)
     }
 
     pub fn diagonal_mask(square_index: SquareIndex) -> Self {
-        let square = BitBoard::square(square_index).0 as i64;
+        let square_index = square_index as i32;
 
-        let maindia = 0x804020100804020i64;
-        let diag = 8 * (square & 7) - (square & 56);
+        let diag = 8 * (square_index & 7) - (square_index & 56);
         let nort = -diag & (diag >> 31);
         let sout = diag & (-diag >> 31);
 
-        Self(((maindia >> sout) << nort) as u64)
+        (Self(0x8040201008040201u64) >> sout) << nort
     }
 
     pub fn anti_diagonal_mask(square_index: SquareIndex) -> Self {
-        let square = BitBoard::square(square_index).0 as i64;
+        let square_index = square_index as i32;
 
-        let maindia = 0x0102040810204080i64;
-        let diag = 56 - 8 * (square & 7) - (square & 56);
+        let diag = 56 - 8 * (square_index & 7) - (square_index & 56);
         let nort = -diag & (diag >> 31);
         let sout = diag & (-diag >> 31);
 
-        Self(((maindia >> sout) << nort) as u64)
+        (Self(0x0102040810204080u64) >> sout) << nort
+    }
+
+    // Sliding pieces
+
+    pub fn rook_attacks(square_index: SquareIndex) -> Self {
+        Self::file_mask(square_index) ^ Self::rank_mask(square_index)
+    }
+
+    pub fn bishop_attacks(square_index: SquareIndex) -> Self {
+        Self::diagonal_mask(square_index) ^ Self::anti_diagonal_mask(square_index)
+    }
+
+    pub fn queen_attacks(square_index: SquareIndex) -> Self {
+        Self::rook_attacks(square_index) | Self::bishop_attacks(square_index)
     }
 
     // Knights
