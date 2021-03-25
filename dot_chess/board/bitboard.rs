@@ -66,9 +66,12 @@ impl core::convert::From<u64> for BitBoard {
 impl core::fmt::Debug for BitBoard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let rank_str = |rank: u8| -> String {
-            format!("{:0<8b}", (self.0 >> (8 * (rank - 1))) & 255)
-                .replace("0", ". ")
-                .replace("1", "x ")
+            format!("{:0>8b}", (self.0 >> (8 * (rank - 1))) & 255)
+                .replace("0", " .")
+                .replace("1", " x")
+                .chars()
+                .rev()
+                .collect()
         };
 
         for rank in (1..=8).rev() {
@@ -95,30 +98,39 @@ impl BitBoard {
     }
 
     // Sliding pieces
+
     pub fn rank_mask(square_index: SquareIndex) -> Self {
-        Self(0xffu64) << (square_index & 56)
+        let square = BitBoard::square(square_index).0;
+
+        Self(0xffu64) << (square & 56u64) as i32
     }
 
     pub fn file_mask(square_index: SquareIndex) -> Self {
-        Self(0x0101010101010101u64) << (square_index & 7)
+        let square = BitBoard::square(square_index).0;
+
+        Self(0x0101010101010101u64) << (square & 7u64) as i32
     }
 
     pub fn diagonal_mask(square_index: SquareIndex) -> Self {
-        let maindia = Self(0x8040201008040201u64);
-        let diag = 8 * (square_index & 7) - (square_index & 56);
+        let square = BitBoard::square(square_index).0 as i64;
+
+        let maindia = 0x804020100804020i64;
+        let diag = 8 * (square & 7) - (square & 56);
         let nort = -diag & (diag >> 31);
         let sout = diag & (-diag >> 31);
 
-        (maindia >> sout) << nort
+        Self(((maindia >> sout) << nort) as u64)
     }
 
     pub fn anti_diagonal_mask(square_index: SquareIndex) -> Self {
-        let maindia = Self(0x0102040810204080u64);
-        let diag = 56 - 8 * (square_index & 7) - (square_index & 56);
+        let square = BitBoard::square(square_index).0 as i64;
+
+        let maindia = 0x0102040810204080i64;
+        let diag = 56 - 8 * (square & 7) - (square & 56);
         let nort = -diag & (diag >> 31);
         let sout = diag & (-diag >> 31);
 
-        (maindia >> sout) << nort
+        Self(((maindia >> sout) << nort) as u64)
     }
 
     // Knights
