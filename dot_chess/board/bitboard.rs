@@ -100,20 +100,60 @@ impl BitBoard {
         attacks ^ king
     }
 
-    pub fn white_single_push_targets(pawns: Self, empty: Self) -> Self {
-        pawns.north_one() & empty
+    pub fn white_pawn_east_attacks(white_pawns: Self) -> Self {
+        white_pawns.north_east_one()
     }
 
-    pub fn white_double_push_targets(pawns: Self, empty: Self) -> Self {
-        Self::white_single_push_targets(pawns, empty).north_one() & empty & Self::RANK_4
+    pub fn white_pawn_west_attacks(white_pawns: Self) -> Self {
+        white_pawns.north_west_one()
     }
 
-    pub fn black_single_push_targets(pawns: Self, empty: Self) -> Self {
-        pawns.south_one() & empty
+    pub fn black_pawn_east_attacks(black_pawns: Self) -> Self {
+        black_pawns.south_east_one()
     }
 
-    pub fn black_double_push_targets(pawns: Self, empty: Self) -> Self {
-        Self::black_single_push_targets(pawns, empty).south_one() & empty & Self::RANK_5
+    pub fn black_pawn_west_attacks(black_pawns: Self) -> Self {
+        black_pawns.south_west_one()
+    }
+
+    pub fn white_pawn_any_attacks(white_pawns: Self) -> Self {
+        Self::white_pawn_east_attacks(white_pawns) | Self::white_pawn_west_attacks(white_pawns)
+    }
+
+    pub fn white_pawn_double_attacks(white_pawns: Self) -> Self {
+        Self::white_pawn_east_attacks(white_pawns) & Self::white_pawn_west_attacks(white_pawns)
+    }
+
+    pub fn white_pawn_single_attacks(white_pawns: Self) -> Self {
+        Self::white_pawn_east_attacks(white_pawns) ^ Self::white_pawn_west_attacks(white_pawns)
+    }
+
+    pub fn black_pawn_any_attacks(black_pawns: Self) -> Self {
+        Self::black_pawn_east_attacks(black_pawns) | Self::black_pawn_west_attacks(black_pawns)
+    }
+
+    pub fn black_pawn_double_attacks(black_pawns: Self) -> Self {
+        Self::black_pawn_east_attacks(black_pawns) & Self::black_pawn_west_attacks(black_pawns)
+    }
+
+    pub fn black_pawn_single_attacks(black_pawns: Self) -> Self {
+        Self::black_pawn_east_attacks(black_pawns) ^ Self::black_pawn_west_attacks(black_pawns)
+    }
+
+    pub fn white_single_push_targets(white_pawns: Self) -> Self {
+        white_pawns.north_one()
+    }
+
+    pub fn white_double_push_targets(white_pawns: Self) -> Self {
+        Self::white_single_push_targets(white_pawns).north_one() & Self::RANK_4
+    }
+
+    pub fn black_single_push_targets(black_pawns: Self) -> Self {
+        black_pawns.south_one()
+    }
+
+    pub fn black_double_push_targets(black_pawns: Self) -> Self {
+        Self::black_single_push_targets(black_pawns).south_one() & Self::RANK_5
     }
 }
 
