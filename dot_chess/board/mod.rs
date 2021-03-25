@@ -219,7 +219,7 @@ mod tests {
 
         assert_eq!(
             BitBoard::square(square.index()),
-            BitBoard(0b10000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000)
+            0b10000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.into()
         );
     }
 
@@ -229,7 +229,7 @@ mod tests {
 
         assert_eq!(
             BitBoard::square(square.index()),
-            BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000001)
+            0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000001.into()
         );
     }
 
@@ -239,7 +239,7 @@ mod tests {
 
         assert_eq!(
             BitBoard::square(square.index()),
-            BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000001_00000000)
+            0b00000000_00000000_00000000_00000000_00000000_00000000_00000001_00000000.into()
         );
     }
 
@@ -249,7 +249,7 @@ mod tests {
 
         assert_eq!(
             BitBoard::square(square.index()),
-            BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000010_00000000)
+            0b00000000_00000000_00000000_00000000_00000000_00000000_00000010_00000000.into()
         );
     }
 
@@ -259,7 +259,7 @@ mod tests {
 
         assert_eq!(
             board.pawns,
-            BitBoard(0b00000000_11111111_00000000_00000000_00000000_00000000_11111111_00000000)
+            0b00000000_11111111_00000000_00000000_00000000_00000000_11111111_00000000.into()
         );
     }
 
@@ -269,7 +269,7 @@ mod tests {
 
         assert_eq!(
             board.rooks,
-            BitBoard(0b10000001_00000000_00000000_00000000_00000000_00000000_00000000_10000001)
+            0b10000001_00000000_00000000_00000000_00000000_00000000_00000000_10000001.into()
         );
     }
 
@@ -279,7 +279,7 @@ mod tests {
 
         assert_eq!(
             board.knights,
-            BitBoard(0b01000010_00000000_00000000_00000000_00000000_00000000_00000000_01000010)
+            0b01000010_00000000_00000000_00000000_00000000_00000000_00000000_01000010.into()
         );
     }
 
@@ -289,7 +289,7 @@ mod tests {
 
         assert_eq!(
             board.bishops,
-            BitBoard(0b00100100_00000000_00000000_00000000_00000000_00000000_00000000_00100100)
+            0b00100100_00000000_00000000_00000000_00000000_00000000_00000000_00100100.into()
         );
     }
 
@@ -299,7 +299,7 @@ mod tests {
 
         assert_eq!(
             board.queens,
-            BitBoard(0b00001000_00000000_00000000_00000000_00000000_00000000_00000000_00001000)
+            0b00001000_00000000_00000000_00000000_00000000_00000000_00000000_00001000.into()
         );
     }
 
@@ -309,7 +309,7 @@ mod tests {
 
         assert_eq!(
             board.kings,
-            BitBoard(0b00010000_00000000_00000000_00000000_00000000_00000000_00000000_00010000)
+            0b00010000_00000000_00000000_00000000_00000000_00000000_00000000_00010000.into()
         );
     }
 
@@ -319,7 +319,7 @@ mod tests {
 
         assert_eq!(
             board.black,
-            BitBoard(0b11111111_11111111_00000000_00000000_00000000_00000000_00000000_00000000)
+            0b11111111_11111111_00000000_00000000_00000000_00000000_00000000_00000000.into()
         );
     }
 
@@ -329,50 +329,49 @@ mod tests {
 
         assert_eq!(
             board.white,
-            BitBoard(0b00000000_00000000_00000000_00000000_00000000_00000000_11111111_11111111)
+            0b00000000_00000000_00000000_00000000_00000000_00000000_11111111_11111111.into()
         );
     }
 
     #[test]
     fn board_get_pieces() {
-        let board = Board::default();
+        let pieces: Vec<(Side, Piece, Square)> = vec![
+            (Side::White, Piece::Rook, Square::from_index(0)),
+            (Side::White, Piece::Knight, Square::from_index(1)),
+            (Side::White, Piece::Bishop, Square::from_index(2)),
+            (Side::White, Piece::Queen, Square::from_index(3)),
+            (Side::White, Piece::King, Square::from_index(4)),
+            (Side::White, Piece::Bishop, Square::from_index(5)),
+            (Side::White, Piece::Knight, Square::from_index(6)),
+            (Side::White, Piece::Rook, Square::from_index(7)),
+            (Side::White, Piece::Pawn, Square::from_index(8)),
+            (Side::White, Piece::Pawn, Square::from_index(9)),
+            (Side::White, Piece::Pawn, Square::from_index(10)),
+            (Side::White, Piece::Pawn, Square::from_index(11)),
+            (Side::White, Piece::Pawn, Square::from_index(12)),
+            (Side::White, Piece::Pawn, Square::from_index(13)),
+            (Side::White, Piece::Pawn, Square::from_index(14)),
+            (Side::White, Piece::Pawn, Square::from_index(15)),
+            (Side::Black, Piece::Pawn, Square::from_index(48)),
+            (Side::Black, Piece::Pawn, Square::from_index(49)),
+            (Side::Black, Piece::Pawn, Square::from_index(50)),
+            (Side::Black, Piece::Pawn, Square::from_index(51)),
+            (Side::Black, Piece::Pawn, Square::from_index(52)),
+            (Side::Black, Piece::Pawn, Square::from_index(53)),
+            (Side::Black, Piece::Pawn, Square::from_index(54)),
+            (Side::Black, Piece::Pawn, Square::from_index(55)),
+            (Side::Black, Piece::Rook, Square::from_index(56)),
+            (Side::Black, Piece::Knight, Square::from_index(57)),
+            (Side::Black, Piece::Bishop, Square::from_index(58)),
+            (Side::Black, Piece::Queen, Square::from_index(59)),
+            (Side::Black, Piece::King, Square::from_index(60)),
+            (Side::Black, Piece::Bishop, Square::from_index(61)),
+            (Side::Black, Piece::Knight, Square::from_index(62)),
+            (Side::Black, Piece::Rook, Square::from_index(63)),
+        ]
+        .into_iter()
+        .collect();
 
-        assert_eq!(
-            board.get_pieces(),
-            vec![
-                (Side::White, Piece::Rook, Square::from_index(0)),
-                (Side::White, Piece::Knight, Square::from_index(1)),
-                (Side::White, Piece::Bishop, Square::from_index(2)),
-                (Side::White, Piece::Queen, Square::from_index(3)),
-                (Side::White, Piece::King, Square::from_index(4)),
-                (Side::White, Piece::Bishop, Square::from_index(5)),
-                (Side::White, Piece::Knight, Square::from_index(6)),
-                (Side::White, Piece::Rook, Square::from_index(7)),
-                (Side::White, Piece::Pawn, Square::from_index(8)),
-                (Side::White, Piece::Pawn, Square::from_index(9)),
-                (Side::White, Piece::Pawn, Square::from_index(10)),
-                (Side::White, Piece::Pawn, Square::from_index(11)),
-                (Side::White, Piece::Pawn, Square::from_index(12)),
-                (Side::White, Piece::Pawn, Square::from_index(13)),
-                (Side::White, Piece::Pawn, Square::from_index(14)),
-                (Side::White, Piece::Pawn, Square::from_index(15)),
-                (Side::Black, Piece::Pawn, Square::from_index(48)),
-                (Side::Black, Piece::Pawn, Square::from_index(49)),
-                (Side::Black, Piece::Pawn, Square::from_index(50)),
-                (Side::Black, Piece::Pawn, Square::from_index(51)),
-                (Side::Black, Piece::Pawn, Square::from_index(52)),
-                (Side::Black, Piece::Pawn, Square::from_index(53)),
-                (Side::Black, Piece::Pawn, Square::from_index(54)),
-                (Side::Black, Piece::Pawn, Square::from_index(55)),
-                (Side::Black, Piece::Rook, Square::from_index(56)),
-                (Side::Black, Piece::Knight, Square::from_index(57)),
-                (Side::Black, Piece::Bishop, Square::from_index(58)),
-                (Side::Black, Piece::Queen, Square::from_index(59)),
-                (Side::Black, Piece::King, Square::from_index(60)),
-                (Side::Black, Piece::Bishop, Square::from_index(61)),
-                (Side::Black, Piece::Knight, Square::from_index(62)),
-                (Side::Black, Piece::Rook, Square::from_index(63)),
-            ]
-        );
+        assert_eq!(Board::default().get_pieces(), pieces);
     }
 }
