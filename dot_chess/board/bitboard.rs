@@ -69,7 +69,8 @@ impl core::convert::From<u64> for BitBoard {
     }
 }
 
-impl core::fmt::Debug for BitBoard {
+#[cfg(feature = "std")]
+impl std::fmt::Debug for BitBoard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let rank_str = |rank: u8| -> String {
             format!("{:0>8b}", (self.0 >> (8 * (rank - 1))) & 255)
