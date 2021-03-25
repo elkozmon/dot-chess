@@ -5,7 +5,7 @@ use scale::{Decode, Encode};
 #[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(
     feature = "std",
-    derive(Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+    derive(PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
 )]
 pub struct BitBoard(u64);
 
@@ -60,6 +60,22 @@ impl core::ops::Not for BitBoard {
 impl core::convert::From<u64> for BitBoard {
     fn from(num: u64) -> Self {
         Self(num)
+    }
+}
+
+impl core::fmt::Debug for BitBoard {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let rank_str = |rank: u8| -> String {
+            format!("{:0<8b}", (self.0 >> (8 * (rank - 1))) & 255)
+                .replace("0", ". ")
+                .replace("1", "x ")
+        };
+
+        for rank in (1..=8).rev() {
+            writeln!(f, "{} {}", rank, rank_str(rank))?
+        }
+
+        writeln!(f, "  A B C D E F G H")
     }
 }
 
