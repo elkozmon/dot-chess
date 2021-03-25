@@ -17,6 +17,12 @@ impl core::ops::BitOr for BitBoard {
     }
 }
 
+impl core::ops::BitOrAssign for BitBoard {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0;
+    }
+}
+
 impl core::ops::BitAnd for BitBoard {
     type Output = Self;
 
@@ -73,6 +79,8 @@ impl core::fmt::Debug for BitBoard {
                 .rev()
                 .collect()
         };
+
+        writeln!(f, "BitBoard 0x{:x}:", self.0);
 
         for rank in (1..=8).rev() {
             writeln!(f, "{} {}", rank, rank_str(rank))?
@@ -161,8 +169,8 @@ impl BitBoard {
     pub fn king_attacks(square_index: SquareIndex) -> Self {
         let king = Self::square(square_index);
 
-        let attacks = king.east_one() | king.west_one() | king;
-        let attacks = attacks.north_one() | attacks.south_one();
+        let mut attacks = king.east_one() | king.west_one() | king;
+        attacks |= attacks.north_one() | attacks.south_one();
 
         attacks ^ king
     }
@@ -259,7 +267,437 @@ impl BitBoard {
         (self << 7) & Self::NOT_H_FILE
     }
 
-    pub fn get(&self, index: u8) -> bool {
-        ((self.0 >> index) & 1) == 1
+    pub fn get(&self, square_index: u8) -> bool {
+        ((self.0 >> square_index) & 1) == 1
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::File;
+    use super::super::Rank;
+    use super::*;
+
+    #[test]
+    fn rank_1_mask() {
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_1).index());
+
+        assert_eq!(bb, BitBoard(0xff));
+    }
+
+    #[test]
+    fn rank_3_mask() {
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_3).index());
+
+        assert_eq!(bb, BitBoard(0xff0000));
+    }
+
+    #[test]
+    fn file_h_mask() {
+        let bb = BitBoard::file_mask(Square::new(File::H, Rank::_1).index());
+
+        assert_eq!(bb, BitBoard(0x8080808080808080));
+    }
+
+    #[test]
+    fn file_d_mask() {
+        let bb = BitBoard::file_mask(Square::new(File::D, Rank::_3).index());
+
+        assert_eq!(bb, BitBoard(0x808080808080808));
+    }
+
+    #[test]
+    fn diagonal_mask_b3() {
+        let bb = BitBoard::diagonal_mask(Square::new(File::B, Rank::_3).index());
+
+        assert_eq!(bb, BitBoard(0x4020100804020100));
+    }
+
+    #[test]
+    fn anti_diagonal_mask_b3() {
+        let bb = BitBoard::anti_diagonal_mask(Square::new(File::B, Rank::_3).index());
+
+        assert_eq!(bb, BitBoard(0x1020408));
+    }
+
+    #[test]
+    fn square_h8() {
+        let bb = BitBoard::square(Square::new(File::H, Rank::_8).index());
+
+        assert_eq!(bb, BitBoard(0x8000000000000000));
+    }
+
+    #[test]
+    fn square_a1() {
+        let bb = BitBoard::square(Square::new(File::A, Rank::_1).index());
+
+        assert_eq!(bb, BitBoard(0x1));
+    }
+
+    #[test]
+    fn square_a2() {
+        let bb = BitBoard::square(Square::new(File::A, Rank::_2).index());
+
+        assert_eq!(bb, BitBoard(0x100));
+    }
+
+    #[test]
+    fn square_b2() {
+        let bb = BitBoard::square(Square::new(File::B, Rank::_2).index());
+
+        assert_eq!(bb, BitBoard(0x200));
+    }
+
+    #[test]
+    fn queen_e6_attacks() {
+        let bb = BitBoard::queen_attacks(Square::new(File::E, Rank::_6).index());
+
+        assert_eq!(bb, BitBoard(0x5438ef3854921110));
+    }
+
+    #[test]
+    fn rook_e6_attacks() {
+        let bb = BitBoard::rook_attacks(Square::new(File::E, Rank::_6).index());
+
+        assert_eq!(bb, BitBoard(0x1010ef1010101010));
+    }
+
+    #[test]
+    fn bishop_e6_attacks() {
+        let bb = BitBoard::bishop_attacks(Square::new(File::E, Rank::_6).index());
+
+        assert_eq!(bb, BitBoard(0x4428002844820100));
+    }
+
+    #[test]
+    fn king_a1_attacks() {
+        let bb = BitBoard::king_attacks(Square::new(File::A, Rank::_1).index());
+
+        assert_eq!(bb, BitBoard(0x302));
+    }
+
+    #[test]
+    fn king_h7_attacks() {
+        let bb = BitBoard::king_attacks(Square::new(File::H, Rank::_7).index());
+
+        assert_eq!(bb, BitBoard(0xc040c00000000000));
+    }
+
+    #[test]
+    fn king_d3_attacks() {
+        let bb = BitBoard::king_attacks(Square::new(File::D, Rank::_3).index());
+
+        assert_eq!(bb, BitBoard(0x1c141c00));
+    }
+
+    #[test]
+    fn white_pawn_any_attacks() {
+        let mut white_pawns = BitBoard::EMPTY;
+
+        let squares = [
+            Square::new(File::A, Rank::_1),
+            Square::new(File::B, Rank::_2),
+            Square::new(File::C, Rank::_1),
+            Square::new(File::D, Rank::_1),
+            Square::new(File::F, Rank::_3),
+            Square::new(File::H, Rank::_7),
+        ];
+
+        for square in squares.iter() {
+            white_pawns |= BitBoard::square(square.index());
+        }
+
+        let bb = BitBoard::white_pawn_any_attacks(white_pawns);
+
+        assert_eq!(bb, BitBoard(0x4000000050051e00));
+    }
+
+    #[test]
+    fn white_pawn_east_attacks() {
+        let mut white_pawns = BitBoard::EMPTY;
+
+        let squares = [
+            Square::new(File::A, Rank::_1),
+            Square::new(File::B, Rank::_2),
+            Square::new(File::C, Rank::_1),
+            Square::new(File::D, Rank::_1),
+            Square::new(File::F, Rank::_3),
+            Square::new(File::H, Rank::_7),
+        ];
+
+        for square in squares.iter() {
+            white_pawns |= BitBoard::square(square.index());
+        }
+
+        let bb = BitBoard::white_pawn_east_attacks(white_pawns);
+
+        assert_eq!(bb, BitBoard(0x40041a00));
+    }
+
+    #[test]
+    fn white_pawn_west_attacks() {
+        let mut white_pawns = BitBoard::EMPTY;
+
+        let squares = [
+            Square::new(File::A, Rank::_1),
+            Square::new(File::B, Rank::_2),
+            Square::new(File::C, Rank::_1),
+            Square::new(File::D, Rank::_1),
+            Square::new(File::F, Rank::_3),
+            Square::new(File::H, Rank::_7),
+        ];
+
+        for square in squares.iter() {
+            white_pawns |= BitBoard::square(square.index());
+        }
+
+        let bb = BitBoard::white_pawn_west_attacks(white_pawns);
+
+        assert_eq!(bb, BitBoard(0x4000000010010600));
+    }
+
+    #[test]
+    fn white_pawn_single_attacks() {
+        let mut white_pawns = BitBoard::EMPTY;
+
+        let squares = [
+            Square::new(File::A, Rank::_1),
+            Square::new(File::B, Rank::_2),
+            Square::new(File::C, Rank::_1),
+            Square::new(File::D, Rank::_1),
+            Square::new(File::F, Rank::_3),
+            Square::new(File::H, Rank::_7),
+        ];
+
+        for square in squares.iter() {
+            white_pawns |= BitBoard::square(square.index());
+        }
+
+        let bb = BitBoard::white_pawn_single_attacks(white_pawns);
+
+        assert_eq!(bb, BitBoard(0x4000000050051c00));
+    }
+
+    #[test]
+    fn white_pawn_double_attacks() {
+        let mut white_pawns = BitBoard::EMPTY;
+
+        let squares = [
+            Square::new(File::A, Rank::_1),
+            Square::new(File::B, Rank::_2),
+            Square::new(File::C, Rank::_1),
+            Square::new(File::D, Rank::_1),
+            Square::new(File::F, Rank::_3),
+            Square::new(File::H, Rank::_7),
+        ];
+
+        for square in squares.iter() {
+            white_pawns |= BitBoard::square(square.index());
+        }
+
+        let bb = BitBoard::white_pawn_double_attacks(white_pawns);
+
+        assert_eq!(bb, BitBoard(0x200));
+    }
+
+    #[test]
+    fn black_pawn_any_attacks() {
+        let mut black_pawns = BitBoard::EMPTY;
+
+        let squares = [
+            Square::new(File::A, Rank::_8),
+            Square::new(File::B, Rank::_7),
+            Square::new(File::C, Rank::_8),
+            Square::new(File::D, Rank::_8),
+            Square::new(File::F, Rank::_5),
+            Square::new(File::H, Rank::_2),
+        ];
+
+        for square in squares.iter() {
+            black_pawns |= BitBoard::square(square.index());
+        }
+
+        let bb = BitBoard::black_pawn_any_attacks(black_pawns);
+
+        assert_eq!(bb, BitBoard(0x1e050050000040));
+    }
+
+    #[test]
+    fn black_pawn_east_attacks() {
+        let mut black_pawns = BitBoard::EMPTY;
+
+        let squares = [
+            Square::new(File::A, Rank::_8),
+            Square::new(File::B, Rank::_7),
+            Square::new(File::C, Rank::_8),
+            Square::new(File::D, Rank::_8),
+            Square::new(File::F, Rank::_5),
+            Square::new(File::H, Rank::_2),
+        ];
+
+        for square in squares.iter() {
+            black_pawns |= BitBoard::square(square.index());
+        }
+
+        let bb = BitBoard::black_pawn_east_attacks(black_pawns);
+
+        assert_eq!(bb, BitBoard(0x1a040040000000));
+    }
+
+    #[test]
+    fn black_pawn_west_attacks() {
+        let mut black_pawns = BitBoard::EMPTY;
+
+        let squares = [
+            Square::new(File::A, Rank::_8),
+            Square::new(File::B, Rank::_7),
+            Square::new(File::C, Rank::_8),
+            Square::new(File::D, Rank::_8),
+            Square::new(File::F, Rank::_5),
+            Square::new(File::H, Rank::_2),
+        ];
+
+        for square in squares.iter() {
+            black_pawns |= BitBoard::square(square.index());
+        }
+
+        let bb = BitBoard::black_pawn_west_attacks(black_pawns);
+
+        assert_eq!(bb, BitBoard(0x6010010000040));
+    }
+
+    #[test]
+    fn black_pawn_single_attacks() {
+        let mut black_pawns = BitBoard::EMPTY;
+
+        let squares = [
+            Square::new(File::A, Rank::_8),
+            Square::new(File::B, Rank::_7),
+            Square::new(File::C, Rank::_8),
+            Square::new(File::D, Rank::_8),
+            Square::new(File::F, Rank::_5),
+            Square::new(File::H, Rank::_2),
+        ];
+
+        for square in squares.iter() {
+            black_pawns |= BitBoard::square(square.index());
+        }
+
+        let bb = BitBoard::black_pawn_single_attacks(black_pawns);
+
+        assert_eq!(bb, BitBoard(0x1c050050000040));
+    }
+
+    #[test]
+    fn black_pawn_double_attacks() {
+        let mut black_pawns = BitBoard::EMPTY;
+
+        let squares = [
+            Square::new(File::A, Rank::_8),
+            Square::new(File::B, Rank::_7),
+            Square::new(File::C, Rank::_8),
+            Square::new(File::D, Rank::_8),
+            Square::new(File::F, Rank::_5),
+            Square::new(File::H, Rank::_2),
+        ];
+
+        for square in squares.iter() {
+            black_pawns |= BitBoard::square(square.index());
+        }
+
+        let bb = BitBoard::black_pawn_double_attacks(black_pawns);
+
+        assert_eq!(bb, BitBoard(0x2000000000000));
+    }
+
+    #[test]
+    fn nort_one_h1() {
+        let bb = BitBoard::square(Square::new(File::H, Rank::_1).index()).north_one();
+
+        assert_eq!(bb, BitBoard(0x8000));
+    }
+
+    #[test]
+    fn nort_one_a8() {
+        let bb = BitBoard::square(Square::new(File::A, Rank::_8).index()).north_one();
+
+        assert_eq!(bb, BitBoard(0x0));
+    }
+
+    #[test]
+    fn nort_east_one_g1() {
+        let bb = BitBoard::square(Square::new(File::G, Rank::_1).index()).north_east_one();
+
+        assert_eq!(bb, BitBoard(0x8000));
+    }
+
+    #[test]
+    fn north_west_one_g1() {
+        let bb = BitBoard::square(Square::new(File::G, Rank::_1).index()).north_west_one();
+
+        assert_eq!(bb, BitBoard(0x2000));
+    }
+
+    #[test]
+    fn east_one_g2() {
+        let bb = BitBoard::square(Square::new(File::G, Rank::_2).index()).east_one();
+
+        assert_eq!(bb, BitBoard(0x8000));
+    }
+
+    #[test]
+    fn west_one_g2() {
+        let bb = BitBoard::square(Square::new(File::G, Rank::_2).index()).west_one();
+
+        assert_eq!(bb, BitBoard(0x2000));
+    }
+
+    #[test]
+    fn south_one_g2() {
+        let bb = BitBoard::square(Square::new(File::G, Rank::_2).index()).south_one();
+
+        assert_eq!(bb, BitBoard(0x40));
+    }
+
+    #[test]
+    fn south_one_g1() {
+        let bb = BitBoard::square(Square::new(File::G, Rank::_1).index()).south_one();
+
+        assert_eq!(bb, BitBoard(0x0));
+    }
+
+    #[test]
+    fn south_west_one_g2() {
+        let bb = BitBoard::square(Square::new(File::G, Rank::_2).index()).south_west_one();
+
+        assert_eq!(bb, BitBoard(0x20));
+    }
+
+    #[test]
+    fn south_east_one_g2() {
+        let bb = BitBoard::square(Square::new(File::G, Rank::_2).index()).south_east_one();
+
+        assert_eq!(bb, BitBoard(0x80));
+    }
+
+    #[test]
+    fn get_g2_true() {
+        let bb = BitBoard::square(Square::new(File::G, Rank::_2).index());
+
+        assert_eq!(bb.get(Square::new(File::G, Rank::_2).index()), true);
+    }
+
+    #[test]
+    fn get_g2_false() {
+        let bb = !BitBoard::square(Square::new(File::G, Rank::_2).index());
+
+        assert_eq!(bb.get(Square::new(File::G, Rank::_2).index()), false);
+    }
+
+    #[test]
+    fn neg_bitboard() {
+        let bb = !BitBoard::square(Square::new(File::G, Rank::_2).index());
+
+        assert_eq!(bb, BitBoard(0xffffffffffffbfff));
     }
 }

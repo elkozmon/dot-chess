@@ -214,123 +214,59 @@ mod tests {
     use super::*;
 
     #[test]
-    fn square_h8_on_bitboard() {
-        let square = Square::new(File::H, Rank::_8);
-
-        assert_eq!(
-            BitBoard::square(square.index()),
-            0b10000000_00000000_00000000_00000000_00000000_00000000_00000000_00000000.into()
-        );
-    }
-
-    #[test]
-    fn square_a1_on_bitboard() {
-        let square = Square::new(File::A, Rank::_1);
-
-        assert_eq!(
-            BitBoard::square(square.index()),
-            0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_00000001.into()
-        );
-    }
-
-    #[test]
-    fn square_a2_on_bitboard() {
-        let square = Square::new(File::A, Rank::_2);
-
-        assert_eq!(
-            BitBoard::square(square.index()),
-            0b00000000_00000000_00000000_00000000_00000000_00000000_00000001_00000000.into()
-        );
-    }
-
-    #[test]
-    fn square_b2_on_bitboard() {
-        let square = Square::new(File::B, Rank::_2);
-
-        assert_eq!(
-            BitBoard::square(square.index()),
-            0b00000000_00000000_00000000_00000000_00000000_00000000_00000010_00000000.into()
-        );
-    }
-
-    #[test]
     fn board_pawn_positions() {
         let board = Board::default();
 
-        assert_eq!(
-            board.pawns,
-            0b00000000_11111111_00000000_00000000_00000000_00000000_11111111_00000000.into()
-        );
+        assert_eq!(board.pawns, 0xff00000000ff00.into());
     }
 
     #[test]
     fn board_rook_positions() {
         let board = Board::default();
 
-        assert_eq!(
-            board.rooks,
-            0b10000001_00000000_00000000_00000000_00000000_00000000_00000000_10000001.into()
-        );
+        assert_eq!(board.rooks, 0x8100000000000081.into());
     }
 
     #[test]
     fn board_knight_positions() {
         let board = Board::default();
 
-        assert_eq!(
-            board.knights,
-            0b01000010_00000000_00000000_00000000_00000000_00000000_00000000_01000010.into()
-        );
+        assert_eq!(board.knights, 0x4200000000000042.into());
     }
 
     #[test]
     fn board_bishop_positions() {
         let board = Board::default();
 
-        assert_eq!(
-            board.bishops,
-            0b00100100_00000000_00000000_00000000_00000000_00000000_00000000_00100100.into()
-        );
+        assert_eq!(board.bishops, 0x2400000000000024.into());
     }
 
     #[test]
     fn board_queen_positions() {
         let board = Board::default();
 
-        assert_eq!(
-            board.queens,
-            0b00001000_00000000_00000000_00000000_00000000_00000000_00000000_00001000.into()
-        );
+        assert_eq!(board.queens, 0x800000000000008.into());
     }
 
     #[test]
     fn board_king_positions() {
         let board = Board::default();
 
-        assert_eq!(
-            board.kings,
-            0b00010000_00000000_00000000_00000000_00000000_00000000_00000000_00010000.into()
-        );
+        assert_eq!(board.kings, 0x1000000000000010.into());
     }
 
     #[test]
     fn board_black_positions() {
         let board = Board::default();
 
-        assert_eq!(
-            board.black,
-            0b11111111_11111111_00000000_00000000_00000000_00000000_00000000_00000000.into()
-        );
+        assert_eq!(board.black, 0xffff000000000000.into());
     }
 
     #[test]
     fn board_white_positions() {
         let board = Board::default();
 
-        assert_eq!(
-            board.white,
-            0b00000000_00000000_00000000_00000000_00000000_00000000_11111111_11111111.into()
-        );
+        assert_eq!(board.white, 0xffff.into());
     }
 
     #[test]
