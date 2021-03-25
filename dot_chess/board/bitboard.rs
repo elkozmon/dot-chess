@@ -1,5 +1,5 @@
 use super::square::{Square, SquareIndex, SQUARE_INDEX_RANGE};
-use bitintr::Lzcnt;
+use bitintr::{Blsfill, Blsr};
 use ink_storage::{
     collections::BinaryHeap,
     traits::{PackedLayout, SpreadLayout, StorageLayout},
@@ -70,6 +70,18 @@ impl core::ops::Not for BitBoard {
 impl core::convert::From<u64> for BitBoard {
     fn from(num: u64) -> Self {
         Self(num)
+    }
+}
+
+impl Blsfill for BitBoard {
+    fn blsfill(self) -> Self {
+        Self(self.0.blsfill())
+    }
+}
+
+impl Blsr for BitBoard {
+    fn blsr(self) -> Self {
+        Self(self.0.blsr())
     }
 }
 
@@ -147,14 +159,7 @@ impl BitBoard {
         let from_bb = Self::square(from_square);
         let to_bb = Self::square(to_square);
 
-        let from_clz = from_bb.0.clz() as i32;
-        let to_clz = to_bb.0.clz() as i32;
-
-        let between = if from_clz > to_clz {
-            !(Self::FULL >> from_clz) & Self::FULL >> to_clz + 1
-        } else {
-            !(Self::FULL >> to_clz) & Self::FULL >> from_clz + 1
-        };
+        let between = ((from_bb.blsfill() ^ to_bb.blsfill()) >> 1).blsr();
 
         let rank_bb = Self::rank_mask(from_square);
         if rank_bb & to_bb != Self::EMPTY {
