@@ -1,16 +1,18 @@
 use super::file::File;
 use super::rank::Rank;
 use crate::board::Error;
+use core::ops::Range;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 
 pub type SquareIndex = u8;
 
-#[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(
-    feature = "std",
-    derive(Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+pub const SQUARE_INDEX_RANGE: Range<u8> = 0..64;
+
+#[derive(
+    Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout,
 )]
+#[cfg_attr(feature = "std", derive(Debug, scale_info::TypeInfo, StorageLayout))]
 pub struct Square {
     index: SquareIndex,
     file: File,

@@ -7,8 +7,10 @@ mod rank;
 mod side;
 mod square;
 
+use self::bitboard::BitBoard;
+use self::square::SQUARE_INDEX_RANGE;
 use crate::dot_chess::Error;
-use bitboard::BitBoard;
+use ink_storage::collections::HashMap;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use ink_storage::Vec;
 use scale::{Decode, Encode};
@@ -143,7 +145,7 @@ impl Board {
 
     pub fn make_move(&mut self, ply: Ply) -> Result<Vec<Event>, Error> {
         let (from_side, from_piece) = self
-            .get_piece(ply.from().index())
+            .get_piece_at(ply.from().index())
             .ok_or(Error::InvalidArgument)?;
 
         if from_side as u8 != self.get_side_turn() as u8 {
@@ -153,6 +155,26 @@ impl Board {
         todo!()
     }
 
+    pub fn get_pieces(&self) -> Vec<(Side, Piece, Square)> {
+        let mut pieces = Vec::new();
+
+        for square_index in SQUARE_INDEX_RANGE {
+            if let Some((side, piece)) = self.get_piece_at(square_index) {
+                let square = Square::from_index(square_index);
+
+                pieces.push((side, piece, square));
+            }
+        }
+
+        pieces
+    }
+
+    pub fn get_flags(&self) -> &Flags {
+        &self.flags
+    }
+}
+
+impl Board {
     fn empty(&self) -> BitBoard {
         !(self.black | self.white)
     }
@@ -164,7 +186,52 @@ impl Board {
         }
     }
 
-    fn get_piece(&self, square_index: SquareIndex) -> Option<(Side, Piece)> {
+    fn get_pseudo_legal_moves(&self) -> HashMap<(Side, Piece, Square), BitBoard> {
+        let mut moves = HashMap::new();
+
+        for square_index in SQUARE_INDEX_RANGE {
+            if let Some((side, piece)) = self.get_piece_at(square_index) {
+                let bitboard = match (side, piece) {
+                    (side, Piece::Knight) => {
+                        BitBoard::knight_attacks(square_index) & !self.get_pieces_by_side(side)
+                    }
+                    (side, Piece::King) => {
+                        BitBoard::king_attacks(square_index) & !self.get_pieces_by_side(side)
+                    }
+                    (side, Piece::Bishop) => {
+                        todo!()
+                    }
+                    (side, Piece::Rook) => {
+                        todo!()
+                    }
+                    (side, Piece::Queen) => {
+                        todo!()
+                    }
+                    (Side::White, Piece::Pawn) => {
+                        todo!()
+                    }
+                    (Side::Black, Piece::Pawn) => {
+                        todo!()
+                    }
+                };
+
+                let square = Square::from_index(square_index);
+
+                moves.insert((side, piece, square), bitboard);
+            };
+        }
+
+        moves
+    }
+
+    fn get_pieces_by_side(&self, side: Side) -> BitBoard {
+        match side {
+            Side::White => self.white,
+            Side::Black => self.black,
+        }
+    }
+
+    fn get_piece_at(&self, square_index: SquareIndex) -> Option<(Side, Piece)> {
         let side = if self.white.get(square_index) {
             Side::White
         } else if self.black.get(square_index) {
@@ -188,24 +255,6 @@ impl Board {
         };
 
         return Some((side, piece));
-    }
-
-    pub fn get_pieces(&self) -> Vec<(Side, Piece, Square)> {
-        let mut pieces = Vec::new();
-
-        for square_index in 0..64 {
-            if let Some((side, piece)) = self.get_piece(square_index) {
-                let square = Square::from_index(square_index);
-
-                pieces.push((side, piece, square));
-            }
-        }
-
-        pieces
-    }
-
-    pub fn get_flags(&self) -> &Flags {
-        &self.flags
     }
 }
 

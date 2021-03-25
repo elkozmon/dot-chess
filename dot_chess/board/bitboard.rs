@@ -1,5 +1,9 @@
-use super::square::{Square, SquareIndex};
-use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
+use super::square::{Square, SquareIndex, SQUARE_INDEX_RANGE};
+use bitintr::Lzcnt;
+use ink_storage::{
+    collections::BinaryHeap,
+    traits::{PackedLayout, SpreadLayout, StorageLayout},
+};
 use scale::{Decode, Encode};
 
 #[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
@@ -97,8 +101,11 @@ impl BitBoard {
     const KNIGHT_ATTACKS: [i8; 8] = [6, 15, 17, 10, -6, -15, -17, -10];
 
     const EMPTY: BitBoard = BitBoard(0);
-    const NOT_A_FILE: BitBoard = BitBoard(0xfefefefefefefefe);
-    const NOT_H_FILE: BitBoard = BitBoard(0x7f7f7f7f7f7f7f7f);
+    const FULL: BitBoard = BitBoard(0xffffffffffffffff);
+    const NOT_FILE_A: BitBoard = BitBoard(0xfefefefefefefefe);
+    const NOT_FILE_H: BitBoard = BitBoard(0x7f7f7f7f7f7f7f7f);
+    const NOT_RANK_1: BitBoard = BitBoard(0x00000000000000ff);
+    const NOT_RANK_8: BitBoard = BitBoard(0x00ffffffffffffff);
     const RANK_4: BitBoard = BitBoard(0x00000000ff000000);
     const RANK_5: BitBoard = BitBoard(0x000000ff00000000);
 
@@ -134,6 +141,42 @@ impl BitBoard {
         let sout = diag & (-diag >> 31);
 
         (Self(0x0102040810204080u64) >> sout) << nort
+    }
+
+    pub fn in_between(from_square: SquareIndex, to_square: SquareIndex) -> Self {
+        let from_bb = Self::square(from_square);
+        let to_bb = Self::square(to_square);
+
+        let from_clz = from_bb.0.clz() as i32;
+        let to_clz = to_bb.0.clz() as i32;
+
+        let between = if from_clz > to_clz {
+            !(Self::FULL >> from_clz) & Self::FULL >> to_clz + 1
+        } else {
+            !(Self::FULL >> to_clz) & Self::FULL >> from_clz + 1
+        };
+
+        let rank_bb = Self::rank_mask(from_square);
+        if rank_bb & to_bb != Self::EMPTY {
+            return rank_bb & between;
+        }
+
+        let file_bb = Self::file_mask(from_square);
+        if file_bb & to_bb != Self::EMPTY {
+            return file_bb & between;
+        }
+
+        let diagonal_bb = Self::diagonal_mask(from_square);
+        if diagonal_bb & to_bb != Self::EMPTY {
+            return diagonal_bb & between;
+        }
+
+        let anti_diagonal_bb = Self::anti_diagonal_mask(from_square);
+        if anti_diagonal_bb & to_bb != Self::EMPTY {
+            return anti_diagonal_bb & between;
+        }
+
+        Self::EMPTY
     }
 
     // Sliding pieces
@@ -245,27 +288,27 @@ impl BitBoard {
     }
 
     pub fn east_one(self) -> Self {
-        (self << 1) & Self::NOT_A_FILE
+        (self << 1) & Self::NOT_FILE_A
     }
 
     pub fn north_east_one(self) -> Self {
-        (self << 9) & Self::NOT_A_FILE
+        (self << 9) & Self::NOT_FILE_A
     }
 
     pub fn south_east_one(self) -> Self {
-        (self >> 7) & Self::NOT_A_FILE
+        (self >> 7) & Self::NOT_FILE_A
     }
 
     pub fn west_one(self) -> Self {
-        (self >> 1) & Self::NOT_H_FILE
+        (self >> 1) & Self::NOT_FILE_H
     }
 
     pub fn south_west_one(self) -> Self {
-        (self >> 9) & Self::NOT_H_FILE
+        (self >> 9) & Self::NOT_FILE_H
     }
 
     pub fn north_west_one(self) -> Self {
-        (self << 7) & Self::NOT_H_FILE
+        (self << 7) & Self::NOT_FILE_H
     }
 
     pub fn get(&self, square_index: u8) -> bool {
@@ -622,7 +665,7 @@ mod tests {
     fn nort_one_a8() {
         let bb = BitBoard::square(Square::new(File::A, Rank::_8).index()).north_one();
 
-        assert_eq!(bb, BitBoard(0x0));
+        assert_eq!(bb, BitBoard::EMPTY);
     }
 
     #[test]
@@ -664,7 +707,7 @@ mod tests {
     fn south_one_g1() {
         let bb = BitBoard::square(Square::new(File::G, Rank::_1).index()).south_one();
 
-        assert_eq!(bb, BitBoard(0x0));
+        assert_eq!(bb, BitBoard::EMPTY);
     }
 
     #[test]
@@ -700,5 +743,55 @@ mod tests {
         let bb = !BitBoard::square(Square::new(File::G, Rank::_2).index());
 
         assert_eq!(bb, BitBoard(0xffffffffffffbfff));
+    }
+
+    #[test]
+    fn in_between_a1_h8() {
+        let bb = BitBoard::in_between(
+            Square::new(File::A, Rank::_1).index(),
+            Square::new(File::H, Rank::_8).index(),
+        );
+
+        assert_eq!(bb, BitBoard(0x40201008040200));
+    }
+
+    #[test]
+    fn in_between_h8_a1() {
+        let bb = BitBoard::in_between(
+            Square::new(File::H, Rank::_8).index(),
+            Square::new(File::A, Rank::_1).index(),
+        );
+
+        assert_eq!(bb, BitBoard(0x40201008040200));
+    }
+
+    #[test]
+    fn in_between_g8_a1() {
+        let bb = BitBoard::in_between(
+            Square::new(File::G, Rank::_8).index(),
+            Square::new(File::A, Rank::_1).index(),
+        );
+
+        assert_eq!(bb, BitBoard::EMPTY);
+    }
+
+    #[test]
+    fn in_between_a1_a8() {
+        let bb = BitBoard::in_between(
+            Square::new(File::A, Rank::_1).index(),
+            Square::new(File::A, Rank::_8).index(),
+        );
+
+        assert_eq!(bb, BitBoard(0x1010101010100));
+    }
+
+    #[test]
+    fn in_between_b4_g4() {
+        let bb = BitBoard::in_between(
+            Square::new(File::B, Rank::_4).index(),
+            Square::new(File::G, Rank::_4).index(),
+        );
+
+        assert_eq!(bb, BitBoard(0x3c000000));
     }
 }

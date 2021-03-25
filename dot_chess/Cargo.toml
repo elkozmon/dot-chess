@@ -17,6 +17,8 @@ scale-info = { version = "0.6.0", default-features = false, features = ["derive"
 # Should be removed once bitvecto-rs/bitvec#105 is resolved
 funty = "=1.1.0"
 
+bitintr = "0.3.0"
+
 [lib]
 name = "dot_chess"
 path = "lib.rs"
