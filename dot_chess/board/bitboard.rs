@@ -102,6 +102,12 @@ impl core::convert::From<u64> for BitBoard {
     }
 }
 
+impl core::convert::Into<u64> for BitBoard {
+    fn into(self) -> u64 {
+        self.0
+    }
+}
+
 impl Blsfill for BitBoard {
     fn blsfill(self) -> Self {
         Self(self.0.blsfill())
@@ -111,12 +117,6 @@ impl Blsfill for BitBoard {
 impl Blsr for BitBoard {
     fn blsr(self) -> Self {
         Self(self.0.blsr())
-    }
-}
-
-impl core::convert::Into<u64> for BitBoard {
-    fn into(self) -> u64 {
-        self.0
     }
 }
 
@@ -243,7 +243,7 @@ impl BitBoard {
         (Self(0x0102040810204080u64) >> sout) << nort
     }
 
-    pub fn in_between(from_square: SquareIndex, to_square: SquareIndex) -> Self {
+    pub fn in_between_mask_mask(from_square: SquareIndex, to_square: SquareIndex) -> Self {
         let from_bb = Self::square(from_square);
         let to_bb = Self::square(to_square);
 
@@ -970,8 +970,8 @@ mod tests {
     }
 
     #[test]
-    fn in_between_a1_h8() {
-        let bb = BitBoard::in_between(
+    fn in_between_mask_a1_h8() {
+        let bb = BitBoard::in_between_mask(
             Square::new(File::A, Rank::_1).index(),
             Square::new(File::H, Rank::_8).index(),
         );
@@ -980,8 +980,8 @@ mod tests {
     }
 
     #[test]
-    fn in_between_h8_a1() {
-        let bb = BitBoard::in_between(
+    fn in_between_mask_h8_a1() {
+        let bb = BitBoard::in_between_mask(
             Square::new(File::H, Rank::_8).index(),
             Square::new(File::A, Rank::_1).index(),
         );
@@ -990,8 +990,8 @@ mod tests {
     }
 
     #[test]
-    fn in_between_g8_a1() {
-        let bb = BitBoard::in_between(
+    fn in_between_mask_g8_a1() {
+        let bb = BitBoard::in_between_mask(
             Square::new(File::G, Rank::_8).index(),
             Square::new(File::A, Rank::_1).index(),
         );
@@ -1000,8 +1000,8 @@ mod tests {
     }
 
     #[test]
-    fn in_between_a1_a8() {
-        let bb = BitBoard::in_between(
+    fn in_between_mask_a1_a8() {
+        let bb = BitBoard::in_between_mask(
             Square::new(File::A, Rank::_1).index(),
             Square::new(File::A, Rank::_8).index(),
         );
@@ -1010,8 +1010,8 @@ mod tests {
     }
 
     #[test]
-    fn in_between_b4_g4() {
-        let bb = BitBoard::in_between(
+    fn in_between_mask_b4_g4() {
+        let bb = BitBoard::in_between_mask(
             Square::new(File::B, Rank::_4).index(),
             Square::new(File::G, Rank::_4).index(),
         );
