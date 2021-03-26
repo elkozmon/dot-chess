@@ -11,6 +11,7 @@ mod square;
 use self::bitboard::BitBoard;
 use self::square::SQUARE_INDEX_RANGE;
 use crate::dot_chess::Error;
+use bitintr::Tzcnt;
 use ink_storage::collections::HashMap;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use ink_storage::Vec;
@@ -35,11 +36,11 @@ pub use square::{Square, SquareIndex};
 /// 1 << 5  En passant open at file F
 /// 1 << 6  En passant open at file G
 /// 1 << 7  En passant open at file H
-/// 1 << 8  White Queen Castling Right
-/// 1 << 9  White King Castling Right
-/// 1 << 10 Black Queen Castling Right
-/// 1 << 11 Black King Castling Right
-/// 1 << 12 Whites Turn
+/// 1 << 8  White queen side castling right
+/// 1 << 9  White king side castling right
+/// 1 << 10 Black queen side castling right
+/// 1 << 11 Black king side castling right
+/// 1 << 12 Whites turn
 #[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(
     feature = "std",
@@ -62,14 +63,14 @@ impl Flags {
         self.0 = (self.0 & !(1u16 << bit)) | ((to as u16) << bit);
     }
 
-    fn get_queen_castling_right_index(side: Side) -> usize {
+    fn get_queen_side_castling_right_index(side: Side) -> usize {
         match side {
             Side::White => 8,
             Side::Black => 10,
         }
     }
 
-    fn get_king_castling_right_index(side: Side) -> usize {
+    fn get_king_side_castling_right_index(side: Side) -> usize {
         match side {
             Side::White => 9,
             Side::Black => 11,
@@ -80,20 +81,35 @@ impl Flags {
         file.index() as usize
     }
 
-    pub fn get_queen_castling_right(&self, side: Side) -> bool {
-        self.get_bit(Self::get_queen_castling_right_index(side))
+    pub fn get_queen_side_castling_right(&self, side: Side) -> bool {
+        self.get_bit(Self::get_queen_side_castling_right_index(side))
     }
 
-    pub fn set_queen_castling_right(&mut self, side: Side, castled: bool) -> () {
-        self.set_bit(Self::get_queen_castling_right_index(side), castled)
+    pub fn set_queen_side_castling_right(&mut self, side: Side, castled: bool) -> () {
+        self.set_bit(Self::get_queen_side_castling_right_index(side), castled)
     }
 
-    pub fn get_king_castling_right(&self, side: Side) -> bool {
-        self.get_bit(Self::get_king_castling_right_index(side))
+    pub fn get_king_side_castling_right(&self, side: Side) -> bool {
+        self.get_bit(Self::get_king_side_castling_right_index(side))
     }
 
-    pub fn set_king_castling_right(&mut self, side: Side, value: bool) -> () {
-        self.set_bit(Self::get_king_castling_right_index(side), value)
+    pub fn set_king_side_castling_right(&mut self, side: Side, value: bool) -> () {
+        self.set_bit(Self::get_king_side_castling_right_index(side), value)
+    }
+
+    pub fn get_en_passant_files(&self) -> Vec<File> {
+        let mut files = Vec::new();
+        let mut mask = (self.0 & 0xffu16) as u8;
+        let mut next = 0u8;
+
+        while mask != 0 {
+            let zcnt = mask.tzcnt();
+            next += zcnt;
+            mask ^= 1 << zcnt;
+            files.push(File::from_index(next).unwrap());
+        }
+
+        files
     }
 
     pub fn get_en_passant_open(&self, file: File) -> bool {
@@ -132,14 +148,14 @@ pub struct Board {
 
 impl Board {
     pub fn new(pieces: Vec<(Side, Piece, Square)>, flags: Flags) -> Self {
-        let mut black = BitBoard::empty();
-        let mut white = BitBoard::empty();
-        let mut kings = BitBoard::empty();
-        let mut queens = BitBoard::empty();
-        let mut rooks = BitBoard::empty();
-        let mut bishops = BitBoard::empty();
-        let mut knights = BitBoard::empty();
-        let mut pawns = BitBoard::empty();
+        let mut black = BitBoard::EMPTY;
+        let mut white = BitBoard::EMPTY;
+        let mut kings = BitBoard::EMPTY;
+        let mut queens = BitBoard::EMPTY;
+        let mut rooks = BitBoard::EMPTY;
+        let mut bishops = BitBoard::EMPTY;
+        let mut knights = BitBoard::EMPTY;
+        let mut pawns = BitBoard::EMPTY;
 
         for (side, piece, square) in pieces.iter() {
             let bitboard = BitBoard::square(square.index());
@@ -245,42 +261,107 @@ impl Board {
         attacks
     }
 
-    fn get_pseudo_legal_moves(&self) -> HashMap<(Side, Piece, Square), BitBoard> {
-        let mut moves = HashMap::new();
+    fn diagonal_attacks(&self, square_index: SquareIndex) -> BitBoard {
+        self.get_ray_attacks(square_index, Direction::NorthEast)
+            | self.get_ray_attacks(square_index, Direction::SouthWest)
+    }
 
-        for square_index in SQUARE_INDEX_RANGE {
-            if let Some((side, piece)) = self.get_piece_at(square_index) {
-                let bitboard = match (side, piece) {
+    fn anti_diagonal_attacks(&self, square_index: SquareIndex) -> BitBoard {
+        self.get_ray_attacks(square_index, Direction::NorthWest)
+            | self.get_ray_attacks(square_index, Direction::SouthEast)
+    }
+
+    fn file_attacks(&self, square_index: SquareIndex) -> BitBoard {
+        self.get_ray_attacks(square_index, Direction::North)
+            | self.get_ray_attacks(square_index, Direction::South)
+    }
+
+    fn rank_attacks(&self, square_index: SquareIndex) -> BitBoard {
+        self.get_ray_attacks(square_index, Direction::East)
+            | self.get_ray_attacks(square_index, Direction::West)
+    }
+
+    fn rook_attacks(&self, square_index: SquareIndex) -> BitBoard {
+        self.file_attacks(square_index) | self.rank_attacks(square_index)
+    }
+
+    fn bishop_attacks(&self, square_index: SquareIndex) -> BitBoard {
+        self.diagonal_attacks(square_index) | self.anti_diagonal_attacks(square_index)
+    }
+
+    fn queen_attacks(&self, square_index: SquareIndex) -> BitBoard {
+        self.rook_attacks(square_index) | self.bishop_attacks(square_index)
+    }
+
+    // TODO test
+    fn get_pseudo_legal_moves(&self, square_index: SquareIndex) -> BitBoard {
+        match self.get_piece_at(square_index) {
+            None => BitBoard::EMPTY,
+            Some((side, piece)) => {
+                let not_own_pieces = !self.get_pieces_by_side(side);
+
+                match (side, piece) {
+                    (side, Piece::Bishop) => self.bishop_attacks(square_index) & not_own_pieces,
+                    (side, Piece::Rook) => self.rook_attacks(square_index) & not_own_pieces,
+                    (side, Piece::Queen) => self.queen_attacks(square_index) & not_own_pieces,
                     (side, Piece::Knight) => {
-                        BitBoard::knight_attacks(square_index) & !self.get_pieces_by_side(side)
+                        BitBoard::knight_attacks_mask(square_index) & not_own_pieces
                     }
                     (side, Piece::King) => {
-                        BitBoard::king_attacks(square_index) & !self.get_pieces_by_side(side)
-                    }
-                    (side, Piece::Bishop) => {
-                        todo!()
-                    }
-                    (side, Piece::Rook) => {
-                        todo!()
-                    }
-                    (side, Piece::Queen) => {
-                        todo!()
+                        let not_occuppied = !self.occupied();
+                        let king = BitBoard::square(square_index);
+
+                        let castling_queen_side = (king.west_one() & not_occuppied).west_one()
+                            & not_occuppied
+                            & BitBoard::FILE_C
+                            & self.get_flags().get_queen_side_castling_right(side);
+
+                        let castling_king_side = (king.east_one() & not_occuppied).east_one()
+                            & not_occuppied
+                            & BitBoard::FILE_G
+                            & self.get_flags().get_king_side_castling_right(side);
+
+                        (BitBoard::king_attacks_mask(square_index) & not_own_pieces)
+                            | castling_king_side
+                            | castling_queen_side
                     }
                     (Side::White, Piece::Pawn) => {
-                        todo!()
+                        let black_pawns: BitBoard = self.black & self.pawns;
+                        let white_pawns: BitBoard = self.white & self.pawns;
+                        let any_attacks: BitBoard = white_pawns.white_pawn_any_attacks_mask();
+                        let sgl_targets: BitBoard = white_pawns.north_one() & not_own_pieces;
+                        let any_targets: BitBoard =
+                            sgl_targets | sgl_targets.north_one() & BitBoard::RANK_4;
+
+                        let pas_targets: BitBoard = BitBoard::RANK_6
+                            & self
+                                .get_flags()
+                                .get_en_passant_files()
+                                .iter()
+                                .fold(BitBoard::EMPTY, |bb, file| bb & BitBoard::from(*file));
+
+                        ((any_attacks & (pas_targets | black_pawns)) | any_targets) & not_own_pieces
                     }
                     (Side::Black, Piece::Pawn) => {
-                        todo!()
+                        let white_pawns: BitBoard = self.white & self.pawns;
+                        let black_pawns: BitBoard = self.black & self.pawns;
+                        let any_attacks: BitBoard = black_pawns.black_pawn_any_attacks_mask();
+                        let sgl_targets: BitBoard = black_pawns.south_one() & not_own_pieces;
+                        let any_targets: BitBoard =
+                            sgl_targets | sgl_targets.south_one() & BitBoard::RANK_5;
+
+                        let pas_targets: BitBoard = BitBoard::RANK_3
+                            & self
+                                .get_flags()
+                                .get_en_passant_files()
+                                .iter()
+                                .fold(BitBoard::EMPTY, |bb, file| bb & BitBoard::from(*file));
+
+                        ((any_attacks & (pas_targets | black_pawns)) | any_targets) & not_own_pieces
                     }
-                };
-
-                let square = Square::from_index(square_index);
-
-                moves.insert((side, piece, square), bitboard);
-            };
+                }
+            }
         }
-
-        moves
     }
 
     fn get_pieces_by_side(&self, side: Side) -> BitBoard {

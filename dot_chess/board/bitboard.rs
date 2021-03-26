@@ -1,16 +1,13 @@
 use super::{
     square::{Square, SquareIndex, SQUARE_INDEX_RANGE},
-    Direction,
+    Direction, File, Rank,
 };
 use bitintr::{Blsfill, Blsmsk, Blsr, Lzcnt, Tzcnt};
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 
 #[derive(PartialEq, Eq, Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(
-    feature = "std",
-    derive(scale_info::TypeInfo, StorageLayout)
-)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
 pub struct BitBoard(u64);
 
 impl core::ops::BitOr for BitBoard {
@@ -38,6 +35,26 @@ impl core::ops::BitAnd for BitBoard {
 impl core::ops::BitAndAssign for BitBoard {
     fn bitand_assign(&mut self, rhs: Self) {
         self.0 &= rhs.0;
+    }
+}
+
+impl core::ops::BitAnd<bool> for BitBoard {
+    type Output = Self;
+
+    fn bitand(self, rhs: bool) -> Self::Output {
+        if !rhs {
+            return Self::EMPTY;
+        }
+
+        return self;
+    }
+}
+
+impl core::ops::BitAndAssign<bool> for BitBoard {
+    fn bitand_assign(&mut self, rhs: bool) {
+        if !rhs {
+            self.0 = Self::EMPTY.0;
+        }
     }
 }
 
@@ -103,6 +120,36 @@ impl core::convert::Into<u64> for BitBoard {
     }
 }
 
+impl core::convert::From<Rank> for BitBoard {
+    fn from(rank: Rank) -> Self {
+        match rank {
+            Rank::_1 => Self::RANK_1,
+            Rank::_2 => Self::RANK_2,
+            Rank::_3 => Self::RANK_3,
+            Rank::_4 => Self::RANK_4,
+            Rank::_5 => Self::RANK_5,
+            Rank::_6 => Self::RANK_6,
+            Rank::_7 => Self::RANK_7,
+            Rank::_8 => Self::RANK_8,
+        }
+    }
+}
+
+impl core::convert::From<File> for BitBoard {
+    fn from(file: File) -> Self {
+        match file {
+            File::A => Self::FILE_A,
+            File::B => Self::FILE_B,
+            File::C => Self::FILE_C,
+            File::D => Self::FILE_D,
+            File::E => Self::FILE_E,
+            File::F => Self::FILE_F,
+            File::G => Self::FILE_G,
+            File::H => Self::FILE_H,
+        }
+    }
+}
+
 #[cfg(feature = "std")]
 impl std::fmt::Debug for BitBoard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -128,20 +175,33 @@ impl std::fmt::Debug for BitBoard {
 impl BitBoard {
     const LENGTH: i8 = 64;
 
-    const EMPTY: Self = Self(0);
-    const FULL: Self = Self(0xffffffffffffffff);
-    const NOT_FILE_A: Self = Self(0xfefefefefefefefe);
-    const NOT_FILE_H: Self = Self(0x7f7f7f7f7f7f7f7f);
-    const RANK_4: Self = Self(0x00000000ff000000);
-    const RANK_5: Self = Self(0x000000ff00000000);
+    pub const RANK_1: Self = Self(0x00000000000000ff);
+    pub const RANK_2: Self = Self(0x000000000000ff00);
+    pub const RANK_3: Self = Self(0x0000000000ff0000);
+    pub const RANK_4: Self = Self(0x00000000ff000000);
+    pub const RANK_5: Self = Self(0x000000ff00000000);
+    pub const RANK_6: Self = Self(0x0000ff0000000000);
+    pub const RANK_7: Self = Self(0x00ff000000000000);
+    pub const RANK_8: Self = Self(0xff00000000000000);
+
+    pub const FILE_A: Self = Self(0x0101010101010101);
+    pub const FILE_B: Self = Self(0x0202020202020202);
+    pub const FILE_C: Self = Self(0x0404040404040404);
+    pub const FILE_D: Self = Self(0x0808080808080808);
+    pub const FILE_E: Self = Self(0x1010101010101010);
+    pub const FILE_F: Self = Self(0x2020202020202020);
+    pub const FILE_G: Self = Self(0x4040404040404040);
+    pub const FILE_H: Self = Self(0x8080808080808080);
+
+    pub const EMPTY: Self = Self(0);
+    pub const FULL: Self = Self(0xffffffffffffffff);
+
+    pub const NOT_FILE_A: Self = Self(0xfefefefefefefefe);
+    pub const NOT_FILE_H: Self = Self(0x7f7f7f7f7f7f7f7f);
 
     const KNIGHT_ATTACKS: [i8; 8] = [6, 15, 17, 10, -6, -15, -17, -10];
 
     // General
-
-    pub fn empty() -> Self {
-        Self::EMPTY
-    }
 
     pub fn square(square_index: SquareIndex) -> Self {
         Self(1) << square_index as i32
@@ -183,6 +243,35 @@ impl BitBoard {
         (Self(0x0102040810204080u64) >> sout) << nort
     }
 
+    pub fn in_between(from_square: SquareIndex, to_square: SquareIndex) -> Self {
+        let from_bb = Self::square(from_square);
+        let to_bb = Self::square(to_square);
+
+        let between = ((from_bb.blsfill() ^ to_bb.blsfill()) >> 1).blsr();
+
+        let rank_bb = Self::rank_mask(from_square);
+        if rank_bb & to_bb != Self::EMPTY {
+            return rank_bb & between;
+        }
+
+        let file_bb = Self::file_mask(from_square);
+        if file_bb & to_bb != Self::EMPTY {
+            return file_bb & between;
+        }
+
+        let diagonal_bb = Self::diagonal_mask(from_square);
+        if diagonal_bb & to_bb != Self::EMPTY {
+            return diagonal_bb & between;
+        }
+
+        let anti_diagonal_bb = Self::anti_diagonal_mask(from_square);
+        if anti_diagonal_bb & to_bb != Self::EMPTY {
+            return anti_diagonal_bb & between;
+        }
+
+        Self::EMPTY
+    }
+
     pub fn ray_mask(square_index: SquareIndex, direction: Direction) -> Self {
         match direction {
             Direction::North => Self::file_mask(square_index) & Self::positive(square_index),
@@ -206,21 +295,21 @@ impl BitBoard {
 
     // Sliding pieces
 
-    pub fn rook_attacks(square_index: SquareIndex) -> Self {
+    pub fn rook_attacks_mask(square_index: SquareIndex) -> Self {
         Self::file_mask(square_index) ^ Self::rank_mask(square_index)
     }
 
-    pub fn bishop_attacks(square_index: SquareIndex) -> Self {
+    pub fn bishop_attacks_mask(square_index: SquareIndex) -> Self {
         Self::diagonal_mask(square_index) ^ Self::anti_diagonal_mask(square_index)
     }
 
-    pub fn queen_attacks(square_index: SquareIndex) -> Self {
-        Self::rook_attacks(square_index) | Self::bishop_attacks(square_index)
+    pub fn queen_attacks_mask(square_index: SquareIndex) -> Self {
+        Self::rook_attacks_mask(square_index) | Self::bishop_attacks_mask(square_index)
     }
 
     // Knights
 
-    pub fn knight_attacks(square_index: SquareIndex) -> Self {
+    pub fn knight_attacks_mask(square_index: SquareIndex) -> Self {
         let square_index = square_index as i8;
 
         Self::KNIGHT_ATTACKS
@@ -235,7 +324,7 @@ impl BitBoard {
 
     // Kings
 
-    pub fn king_attacks(square_index: SquareIndex) -> Self {
+    pub fn king_attacks_mask(square_index: SquareIndex) -> Self {
         let king = Self::square(square_index);
 
         let mut attacks = king.east_one() | king.west_one() | king;
@@ -246,60 +335,44 @@ impl BitBoard {
 
     // Pawns
 
-    pub fn white_pawn_east_attacks(white_pawns: Self) -> Self {
-        white_pawns.north_east_one()
+    pub fn white_pawn_east_attacks_mask(&self) -> Self {
+        self.north_east_one()
     }
 
-    pub fn white_pawn_west_attacks(white_pawns: Self) -> Self {
-        white_pawns.north_west_one()
+    pub fn white_pawn_west_attacks_mask(&self) -> Self {
+        self.north_west_one()
     }
 
-    pub fn black_pawn_east_attacks(black_pawns: Self) -> Self {
-        black_pawns.south_east_one()
+    pub fn black_pawn_east_attacks_mask(&self) -> Self {
+        self.south_east_one()
     }
 
-    pub fn black_pawn_west_attacks(black_pawns: Self) -> Self {
-        black_pawns.south_west_one()
+    pub fn black_pawn_west_attacks_mask(&self) -> Self {
+        self.south_west_one()
     }
 
-    pub fn white_pawn_any_attacks(white_pawns: Self) -> Self {
-        Self::white_pawn_east_attacks(white_pawns) | Self::white_pawn_west_attacks(white_pawns)
+    pub fn white_pawn_any_attacks_mask(&self) -> Self {
+        self.white_pawn_east_attacks_mask() | self.white_pawn_west_attacks_mask()
     }
 
-    pub fn white_pawn_double_attacks(white_pawns: Self) -> Self {
-        Self::white_pawn_east_attacks(white_pawns) & Self::white_pawn_west_attacks(white_pawns)
+    pub fn white_pawn_double_attacks_mask(&self) -> Self {
+        self.white_pawn_east_attacks_mask() & self.white_pawn_west_attacks_mask()
     }
 
-    pub fn white_pawn_single_attacks(white_pawns: Self) -> Self {
-        Self::white_pawn_east_attacks(white_pawns) ^ Self::white_pawn_west_attacks(white_pawns)
+    pub fn white_pawn_single_attacks_mask(&self) -> Self {
+        self.white_pawn_east_attacks_mask() ^ self.white_pawn_west_attacks_mask()
     }
 
-    pub fn black_pawn_any_attacks(black_pawns: Self) -> Self {
-        Self::black_pawn_east_attacks(black_pawns) | Self::black_pawn_west_attacks(black_pawns)
+    pub fn black_pawn_any_attacks_mask(&self) -> Self {
+        self.black_pawn_east_attacks_mask() | self.black_pawn_west_attacks_mask()
     }
 
-    pub fn black_pawn_double_attacks(black_pawns: Self) -> Self {
-        Self::black_pawn_east_attacks(black_pawns) & Self::black_pawn_west_attacks(black_pawns)
+    pub fn black_pawn_double_attacks_mask(&self) -> Self {
+        self.black_pawn_east_attacks_mask() & self.black_pawn_west_attacks_mask()
     }
 
-    pub fn black_pawn_single_attacks(black_pawns: Self) -> Self {
-        Self::black_pawn_east_attacks(black_pawns) ^ Self::black_pawn_west_attacks(black_pawns)
-    }
-
-    pub fn white_single_push_targets(white_pawns: Self) -> Self {
-        white_pawns.north_one()
-    }
-
-    pub fn white_double_push_targets(white_pawns: Self) -> Self {
-        Self::white_single_push_targets(white_pawns).north_one() & Self::RANK_4
-    }
-
-    pub fn black_single_push_targets(black_pawns: Self) -> Self {
-        black_pawns.south_one()
-    }
-
-    pub fn black_double_push_targets(black_pawns: Self) -> Self {
-        Self::black_single_push_targets(black_pawns).south_one() & Self::RANK_5
+    pub fn black_pawn_single_attacks_mask(&self) -> Self {
+        self.black_pawn_east_attacks_mask() ^ self.black_pawn_west_attacks_mask()
     }
 }
 
@@ -369,28 +442,112 @@ mod tests {
     fn rank_1_mask() {
         let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_1).index());
 
-        assert_eq!(bb, BitBoard(0xff));
+        assert_eq!(bb, BitBoard::RANK_1);
+    }
+
+    #[test]
+    fn rank_2_mask() {
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_2).index());
+
+        assert_eq!(bb, BitBoard::RANK_2);
     }
 
     #[test]
     fn rank_3_mask() {
         let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_3).index());
 
-        assert_eq!(bb, BitBoard(0xff0000));
+        assert_eq!(bb, BitBoard::RANK_3);
     }
 
     #[test]
-    fn file_h_mask() {
-        let bb = BitBoard::file_mask(Square::new(File::H, Rank::_1).index());
+    fn rank_4_mask() {
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_4).index());
 
-        assert_eq!(bb, BitBoard(0x8080808080808080));
+        assert_eq!(bb, BitBoard::RANK_4);
+    }
+
+    #[test]
+    fn rank_5_mask() {
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_5).index());
+
+        assert_eq!(bb, BitBoard::RANK_5);
+    }
+
+    #[test]
+    fn rank_6_mask() {
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_6).index());
+
+        assert_eq!(bb, BitBoard::RANK_6);
+    }
+
+    #[test]
+    fn rank_7_mask() {
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_7).index());
+
+        assert_eq!(bb, BitBoard::RANK_7);
+    }
+
+    #[test]
+    fn rank_8_mask() {
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_8).index());
+
+        assert_eq!(bb, BitBoard::RANK_8);
+    }
+
+    #[test]
+    fn file_a_mask() {
+        let bb = BitBoard::file_mask(Square::new(File::A, Rank::_3).index());
+
+        assert_eq!(bb, BitBoard::FILE_A);
+    }
+
+    #[test]
+    fn file_b_mask() {
+        let bb = BitBoard::file_mask(Square::new(File::B, Rank::_3).index());
+
+        assert_eq!(bb, BitBoard::FILE_B);
+    }
+
+    #[test]
+    fn file_c_mask() {
+        let bb = BitBoard::file_mask(Square::new(File::C, Rank::_3).index());
+
+        assert_eq!(bb, BitBoard::FILE_C);
     }
 
     #[test]
     fn file_d_mask() {
         let bb = BitBoard::file_mask(Square::new(File::D, Rank::_3).index());
 
-        assert_eq!(bb, BitBoard(0x808080808080808));
+        assert_eq!(bb, BitBoard::FILE_D);
+    }
+
+    #[test]
+    fn file_e_mask() {
+        let bb = BitBoard::file_mask(Square::new(File::E, Rank::_3).index());
+
+        assert_eq!(bb, BitBoard::FILE_E);
+    }
+
+    #[test]
+    fn file_f_mask() {
+        let bb = BitBoard::file_mask(Square::new(File::F, Rank::_3).index());
+
+        assert_eq!(bb, BitBoard::FILE_F);
+    }
+
+    #[test]
+    fn file_g_mask() {
+        let bb = BitBoard::file_mask(Square::new(File::G, Rank::_3).index());
+
+        assert_eq!(bb, BitBoard::FILE_G);
+    }
+
+    #[test]
+    fn file_h_mask() {
+        let bb = BitBoard::file_mask(Square::new(File::H, Rank::_1).index());
+
+        assert_eq!(bb, BitBoard::FILE_H);
     }
 
     #[test]
@@ -436,49 +593,49 @@ mod tests {
     }
 
     #[test]
-    fn queen_e6_attacks() {
-        let bb = BitBoard::queen_attacks(Square::new(File::E, Rank::_6).index());
+    fn queen_e6_attacks_mask() {
+        let bb = BitBoard::queen_attacks_mask(Square::new(File::E, Rank::_6).index());
 
         assert_eq!(bb, BitBoard(0x5438ef3854921110));
     }
 
     #[test]
-    fn rook_e6_attacks() {
-        let bb = BitBoard::rook_attacks(Square::new(File::E, Rank::_6).index());
+    fn rook_e6_attacks_mask() {
+        let bb = BitBoard::rook_attacks_mask(Square::new(File::E, Rank::_6).index());
 
         assert_eq!(bb, BitBoard(0x1010ef1010101010));
     }
 
     #[test]
-    fn bishop_e6_attacks() {
-        let bb = BitBoard::bishop_attacks(Square::new(File::E, Rank::_6).index());
+    fn bishop_e6_attacks_mask() {
+        let bb = BitBoard::bishop_attacks_mask(Square::new(File::E, Rank::_6).index());
 
         assert_eq!(bb, BitBoard(0x4428002844820100));
     }
 
     #[test]
-    fn king_a1_attacks() {
-        let bb = BitBoard::king_attacks(Square::new(File::A, Rank::_1).index());
+    fn king_a1_attacks_mask() {
+        let bb = BitBoard::king_attacks_mask(Square::new(File::A, Rank::_1).index());
 
         assert_eq!(bb, BitBoard(0x302));
     }
 
     #[test]
-    fn king_h7_attacks() {
-        let bb = BitBoard::king_attacks(Square::new(File::H, Rank::_7).index());
+    fn king_h7_attacks_mask() {
+        let bb = BitBoard::king_attacks_mask(Square::new(File::H, Rank::_7).index());
 
         assert_eq!(bb, BitBoard(0xc040c00000000000));
     }
 
     #[test]
-    fn king_d3_attacks() {
-        let bb = BitBoard::king_attacks(Square::new(File::D, Rank::_3).index());
+    fn king_d3_attacks_mask() {
+        let bb = BitBoard::king_attacks_mask(Square::new(File::D, Rank::_3).index());
 
         assert_eq!(bb, BitBoard(0x1c141c00));
     }
 
     #[test]
-    fn white_pawn_any_attacks() {
+    fn white_pawn_any_attacks_mask() {
         let mut white_pawns = BitBoard::EMPTY;
 
         let squares = [
@@ -494,13 +651,14 @@ mod tests {
             white_pawns |= BitBoard::square(square.index());
         }
 
-        let bb = BitBoard::white_pawn_any_attacks(white_pawns);
-
-        assert_eq!(bb, BitBoard(0x4000000050051e00));
+        assert_eq!(
+            white_pawns.white_pawn_any_attacks_mask(),
+            BitBoard(0x4000000050051e00)
+        );
     }
 
     #[test]
-    fn white_pawn_east_attacks() {
+    fn white_pawn_east_attacks_mask() {
         let mut white_pawns = BitBoard::EMPTY;
 
         let squares = [
@@ -516,13 +674,14 @@ mod tests {
             white_pawns |= BitBoard::square(square.index());
         }
 
-        let bb = BitBoard::white_pawn_east_attacks(white_pawns);
-
-        assert_eq!(bb, BitBoard(0x40041a00));
+        assert_eq!(
+            white_pawns.white_pawn_east_attacks_mask(),
+            BitBoard(0x40041a00)
+        );
     }
 
     #[test]
-    fn white_pawn_west_attacks() {
+    fn white_pawn_west_attacks_mask() {
         let mut white_pawns = BitBoard::EMPTY;
 
         let squares = [
@@ -538,13 +697,14 @@ mod tests {
             white_pawns |= BitBoard::square(square.index());
         }
 
-        let bb = BitBoard::white_pawn_west_attacks(white_pawns);
-
-        assert_eq!(bb, BitBoard(0x4000000010010600));
+        assert_eq!(
+            white_pawns.white_pawn_west_attacks_mask(),
+            BitBoard(0x4000000010010600)
+        );
     }
 
     #[test]
-    fn white_pawn_single_attacks() {
+    fn white_pawn_single_attacks_mask() {
         let mut white_pawns = BitBoard::EMPTY;
 
         let squares = [
@@ -560,13 +720,14 @@ mod tests {
             white_pawns |= BitBoard::square(square.index());
         }
 
-        let bb = BitBoard::white_pawn_single_attacks(white_pawns);
-
-        assert_eq!(bb, BitBoard(0x4000000050051c00));
+        assert_eq!(
+            white_pawns.white_pawn_single_attacks_mask(),
+            BitBoard(0x4000000050051c00)
+        );
     }
 
     #[test]
-    fn white_pawn_double_attacks() {
+    fn white_pawn_double_attacks_mask() {
         let mut white_pawns = BitBoard::EMPTY;
 
         let squares = [
@@ -582,13 +743,14 @@ mod tests {
             white_pawns |= BitBoard::square(square.index());
         }
 
-        let bb = BitBoard::white_pawn_double_attacks(white_pawns);
-
-        assert_eq!(bb, BitBoard(0x200));
+        assert_eq!(
+            white_pawns.white_pawn_double_attacks_mask(),
+            BitBoard(0x200)
+        );
     }
 
     #[test]
-    fn black_pawn_any_attacks() {
+    fn black_pawn_any_attacks_mask() {
         let mut black_pawns = BitBoard::EMPTY;
 
         let squares = [
@@ -604,13 +766,14 @@ mod tests {
             black_pawns |= BitBoard::square(square.index());
         }
 
-        let bb = BitBoard::black_pawn_any_attacks(black_pawns);
-
-        assert_eq!(bb, BitBoard(0x1e050050000040));
+        assert_eq!(
+            black_pawns.black_pawn_any_attacks_mask(),
+            BitBoard(0x1e050050000040)
+        );
     }
 
     #[test]
-    fn black_pawn_east_attacks() {
+    fn black_pawn_east_attacks_mask() {
         let mut black_pawns = BitBoard::EMPTY;
 
         let squares = [
@@ -626,13 +789,14 @@ mod tests {
             black_pawns |= BitBoard::square(square.index());
         }
 
-        let bb = BitBoard::black_pawn_east_attacks(black_pawns);
-
-        assert_eq!(bb, BitBoard(0x1a040040000000));
+        assert_eq!(
+            black_pawns.black_pawn_east_attacks_mask(),
+            BitBoard(0x1a040040000000)
+        );
     }
 
     #[test]
-    fn black_pawn_west_attacks() {
+    fn black_pawn_west_attacks_mask() {
         let mut black_pawns = BitBoard::EMPTY;
 
         let squares = [
@@ -648,13 +812,14 @@ mod tests {
             black_pawns |= BitBoard::square(square.index());
         }
 
-        let bb = BitBoard::black_pawn_west_attacks(black_pawns);
-
-        assert_eq!(bb, BitBoard(0x6010010000040));
+        assert_eq!(
+            black_pawns.black_pawn_west_attacks_mask(),
+            BitBoard(0x6010010000040)
+        );
     }
 
     #[test]
-    fn black_pawn_single_attacks() {
+    fn black_pawn_single_attacks_mask() {
         let mut black_pawns = BitBoard::EMPTY;
 
         let squares = [
@@ -670,13 +835,14 @@ mod tests {
             black_pawns |= BitBoard::square(square.index());
         }
 
-        let bb = BitBoard::black_pawn_single_attacks(black_pawns);
-
-        assert_eq!(bb, BitBoard(0x1c050050000040));
+        assert_eq!(
+            black_pawns.black_pawn_single_attacks_mask(),
+            BitBoard(0x1c050050000040)
+        );
     }
 
     #[test]
-    fn black_pawn_double_attacks() {
+    fn black_pawn_double_attacks_mask() {
         let mut black_pawns = BitBoard::EMPTY;
 
         let squares = [
@@ -692,9 +858,10 @@ mod tests {
             black_pawns |= BitBoard::square(square.index());
         }
 
-        let bb = BitBoard::black_pawn_double_attacks(black_pawns);
-
-        assert_eq!(bb, BitBoard(0x2000000000000));
+        assert_eq!(
+            black_pawns.black_pawn_double_attacks_mask(),
+            BitBoard(0x2000000000000)
+        );
     }
 
     #[test]
@@ -800,5 +967,55 @@ mod tests {
         let bb = BitBoard::ray_mask(Square::new(File::G, Rank::_5).index(), Direction::NorthWest);
 
         assert_eq!(bb, BitBoard(0x810200000000000));
+    }
+
+    #[test]
+    fn in_between_a1_h8() {
+        let bb = BitBoard::in_between(
+            Square::new(File::A, Rank::_1).index(),
+            Square::new(File::H, Rank::_8).index(),
+        );
+
+        assert_eq!(bb, BitBoard(0x40201008040200));
+    }
+
+    #[test]
+    fn in_between_h8_a1() {
+        let bb = BitBoard::in_between(
+            Square::new(File::H, Rank::_8).index(),
+            Square::new(File::A, Rank::_1).index(),
+        );
+
+        assert_eq!(bb, BitBoard(0x40201008040200));
+    }
+
+    #[test]
+    fn in_between_g8_a1() {
+        let bb = BitBoard::in_between(
+            Square::new(File::G, Rank::_8).index(),
+            Square::new(File::A, Rank::_1).index(),
+        );
+
+        assert_eq!(bb, BitBoard::EMPTY);
+    }
+
+    #[test]
+    fn in_between_a1_a8() {
+        let bb = BitBoard::in_between(
+            Square::new(File::A, Rank::_1).index(),
+            Square::new(File::A, Rank::_8).index(),
+        );
+
+        assert_eq!(bb, BitBoard(0x1010101010100));
+    }
+
+    #[test]
+    fn in_between_b4_g4() {
+        let bb = BitBoard::in_between(
+            Square::new(File::B, Rank::_4).index(),
+            Square::new(File::G, Rank::_4).index(),
+        );
+
+        assert_eq!(bb, BitBoard(0x3c000000));
     }
 }

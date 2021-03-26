@@ -176,13 +176,13 @@ impl ZobristHash {
         for side in Side::VARIANTS.iter() {
             let side = *side;
 
-            if flags.get_queen_castling_right(side) {
+            if flags.get_queen_side_castling_right(side) {
                 let hash_key_index = Self::get_queen_castling_right_hash_key_index(side);
                 let hash_key = ZOBRIST_KEYS[hash_key_index];
                 hash ^= hash_key;
             }
 
-            if flags.get_king_castling_right(side) {
+            if flags.get_king_side_castling_right(side) {
                 let hash_key_index = Self::get_king_castling_right_hash_key_index(side);
                 let hash_key = ZOBRIST_KEYS[hash_key_index];
                 hash ^= hash_key;
