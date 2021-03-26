@@ -132,14 +132,14 @@ pub struct Board {
 
 impl Board {
     pub fn new(pieces: Vec<(Side, Piece, Square)>, flags: Flags) -> Self {
-        let mut black = BitBoard::EMPTY;
-        let mut white = BitBoard::EMPTY;
-        let mut kings = BitBoard::EMPTY;
-        let mut queens = BitBoard::EMPTY;
-        let mut rooks = BitBoard::EMPTY;
-        let mut bishops = BitBoard::EMPTY;
-        let mut knights = BitBoard::EMPTY;
-        let mut pawns = BitBoard::EMPTY;
+        let mut black = BitBoard::empty();
+        let mut white = BitBoard::empty();
+        let mut kings = BitBoard::empty();
+        let mut queens = BitBoard::empty();
+        let mut rooks = BitBoard::empty();
+        let mut bishops = BitBoard::empty();
+        let mut knights = BitBoard::empty();
+        let mut pawns = BitBoard::empty();
 
         for (side, piece, square) in pieces.iter() {
             let bitboard = BitBoard::square(square.index());
@@ -237,7 +237,7 @@ impl Board {
         let mut attacks = BitBoard::ray_mask(square_index, direction);
         let blocker = attacks & self.occupied();
 
-        if blocker != BitBoard::EMPTY {
+        if blocker.not_empty() {
             let square = blocker.bit_scan(direction.negative());
             attacks ^= BitBoard::ray_mask(square, direction);
         }

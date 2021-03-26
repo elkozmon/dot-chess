@@ -6,10 +6,10 @@ use bitintr::{Blsfill, Blsmsk, Blsr, Lzcnt, Tzcnt};
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 
-#[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
+#[derive(PartialEq, Eq, Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(
     feature = "std",
-    derive(PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+    derive(scale_info::TypeInfo, StorageLayout)
 )]
 pub struct BitBoard(u64);
 
@@ -128,8 +128,8 @@ impl std::fmt::Debug for BitBoard {
 impl BitBoard {
     const LENGTH: i8 = 64;
 
-    pub const EMPTY: Self = Self(0);
-    pub const FULL: Self = Self(0xffffffffffffffff);
+    const EMPTY: Self = Self(0);
+    const FULL: Self = Self(0xffffffffffffffff);
     const NOT_FILE_A: Self = Self(0xfefefefefefefefe);
     const NOT_FILE_H: Self = Self(0x7f7f7f7f7f7f7f7f);
     const RANK_4: Self = Self(0x00000000ff000000);
@@ -138,6 +138,10 @@ impl BitBoard {
     const KNIGHT_ATTACKS: [i8; 8] = [6, 15, 17, 10, -6, -15, -17, -10];
 
     // General
+
+    pub fn empty() -> Self {
+        Self::EMPTY
+    }
 
     pub fn square(square_index: SquareIndex) -> Self {
         Self(1) << square_index as i32
@@ -300,6 +304,14 @@ impl BitBoard {
 }
 
 impl BitBoard {
+    pub fn is_empty(self) -> bool {
+        self == Self::EMPTY
+    }
+
+    pub fn not_empty(self) -> bool {
+        !self.is_empty()
+    }
+
     pub fn north_one(self) -> Self {
         self << 8
     }
