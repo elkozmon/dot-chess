@@ -220,8 +220,8 @@ impl ZobristHash {
                     let hash_key = ZOBRIST_KEYS[hash_key_index];
                     hash ^= hash_key;
                 }
-                Event::EnPassantOpened(square) | Event::EnPassantClosed(square) => {
-                    let hash_key_index = Self::get_en_passant_hash_key_index(square.file());
+                Event::EnPassantOpened(file) | Event::EnPassantClosed(square) => {
+                    let hash_key_index = Self::get_en_passant_hash_key_index(file);
                     let hash_key = ZOBRIST_KEYS[hash_key_index];
                     hash ^= hash_key;
                 }

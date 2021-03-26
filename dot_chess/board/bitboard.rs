@@ -243,7 +243,7 @@ impl BitBoard {
         (Self(0x0102040810204080u64) >> sout) << nort
     }
 
-    pub fn in_between_mask_mask(from_square: SquareIndex, to_square: SquareIndex) -> Self {
+    pub fn in_between_mask(from_square: SquareIndex, to_square: SquareIndex) -> Self {
         let from_bb = Self::square(from_square);
         let to_bb = Self::square(to_square);
 
@@ -419,6 +419,10 @@ impl BitBoard {
 
     pub fn get(&self, square_index: u8) -> bool {
         ((self.0 >> square_index) & 1) == 1
+    }
+
+    pub fn pop_square(&mut self) -> SquareIndex {
+        todo!()
     }
 
     pub fn bit_scan(&self, reverse: bool) -> SquareIndex {

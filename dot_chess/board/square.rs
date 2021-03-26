@@ -4,7 +4,9 @@ use crate::board::Error;
 use core::ops::Range;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
+use std::convert::TryFrom;
 
+// TODO to pub struct with From/Into impls
 pub type SquareIndex = u8;
 
 pub const SQUARE_INDEX_RANGE: Range<u8> = 0..64;
@@ -19,6 +21,33 @@ pub struct Square {
     rank: Rank,
 }
 
+impl core::convert::From<SquareIndex> for Square {
+    fn into(self) -> Square {
+        let file = File::try_from(index & 7).unwrap();
+        let rank = Rank::try_from(index >> 3).unwrap();
+
+        Self { index, file, rank }
+    }
+}
+
+impl core::convert::Into<SquareIndex> for Square {
+    fn into(self) -> SquareIndex {
+        self.index
+    }
+}
+
+impl core::convert::Into<File> for Square {
+    fn into(self) -> File {
+        self.file
+    }
+}
+
+impl core::convert::Into<Rank> for Square {
+    fn into(self) -> Rank {
+        self.rank
+    }
+}
+
 impl Square {
     pub fn new(file: File, rank: Rank) -> Self {
         let index = 8 * rank.index() + file.index();
@@ -27,8 +56,8 @@ impl Square {
     }
 
     pub fn from_index(index: SquareIndex) -> Self {
-        let file = File::from_index(index & 7).unwrap();
-        let rank = Rank::from_index(index >> 3).unwrap();
+        let file = File::try_from(index & 7).unwrap();
+        let rank = Rank::try_from(index >> 3).unwrap();
 
         Self { index, file, rank }
     }

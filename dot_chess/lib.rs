@@ -110,37 +110,28 @@ mod dot_chess {
             (board, *flags)
         }
 
-        fn try_make_move(
-            &mut self,
-            from: SquareIndex,
-            to: SquareIndex,
-            flags: PlyFlags,
-        ) -> Result<Vec<Event>, Error> {
-            let caller = self.env().caller();
-
-            // Assert it's callers turn
-            let account_in_turn = if self.board.get_flags().get_whites_turn() {
-                self.white
-            } else {
-                self.black
-            };
-
-            if caller != account_in_turn {
-                return Err(Error::InvalidCaller);
-            }
-
-            let ply = Ply::new(Square::from_index(from), Square::from_index(to), flags);
-
-            Ok(self.board.make_move(ply)?)
-        }
-
         /// Makes a move
         ///
         /// Returns true if move was successful
         #[ink(message)]
         pub fn make_move(&mut self, from: SquareIndex, to: SquareIndex, flags: PlyFlags) -> bool {
-            match self.try_make_move(from, to, flags) {
-                Ok(events) => {
+            let caller = self.env().caller();
+
+            // Assert it's callers turn
+            let account_in_turn = match self.board.get_side_turn() {
+                Side::White => self.white,
+                Side::Black => self.black,
+            };
+
+            if caller != account_in_turn {
+                todo!("Emit event: Invalid caller");
+                return false;
+            }
+
+            let ply = Ply::new(from, to, flags);
+
+            match self.board.try_make_move(ply) {
+                Ok((board_new, events)) => {
                     let new_hash = self.board_history.last().unwrap().apply(events);
 
                     self.board_history.push(new_hash);
@@ -148,6 +139,8 @@ mod dot_chess {
                     if self.board_history.len() == 100 {
                         // Draw
                     }
+
+                    self.board = ink_storage::Pack::new(board_new);
 
                     true
                 }

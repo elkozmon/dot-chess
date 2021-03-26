@@ -17,6 +17,24 @@ pub enum Rank {
     _8,
 }
 
+impl core::convert::TryFrom<u8> for Rank {
+    type Error = Error;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::_1),
+            1 => Ok(Self::_2),
+            2 => Ok(Self::_3),
+            3 => Ok(Self::_4),
+            4 => Ok(Self::_5),
+            5 => Ok(Self::_6),
+            6 => Ok(Self::_7),
+            7 => Ok(Self::_8),
+            _ => Err(Error::InvalidArgument),
+        }
+    }
+}
+
 impl Rank {
     pub fn index(&self) -> u8 {
         match self {
@@ -28,20 +46,6 @@ impl Rank {
             Self::_6 => 5,
             Self::_7 => 6,
             Self::_8 => 7,
-        }
-    }
-
-    pub fn from_index(index: u8) -> Result<Self, Error> {
-        match index {
-            0 => Ok(Self::_1),
-            1 => Ok(Self::_2),
-            2 => Ok(Self::_3),
-            3 => Ok(Self::_4),
-            4 => Ok(Self::_5),
-            5 => Ok(Self::_6),
-            6 => Ok(Self::_7),
-            7 => Ok(Self::_8),
-            _ => Err(Error::InvalidArgument),
         }
     }
 }
