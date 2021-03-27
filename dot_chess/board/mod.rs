@@ -8,11 +8,10 @@ mod rank;
 mod side;
 mod square;
 
-use std::convert::TryFrom;
-
 use self::bitboard::BitBoard;
 use crate::dot_chess::Error;
 use bitintr::Tzcnt;
+use core::convert::TryFrom;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use ink_storage::Vec;
 use scale::{Decode, Encode};
@@ -282,6 +281,20 @@ impl Board {
         self.black | self.white
     }
 
+    fn duplicate(&self) -> Self {
+        Self {
+            black: self.black,
+            white: self.white,
+            kings: self.kings,
+            queens: self.queens,
+            rooks: self.rooks,
+            bishops: self.bishops,
+            knights: self.knights,
+            pawns: self.pawns,
+            flags: Flags(self.flags.0),
+        }
+    }
+
     fn get_ray_attacks(&self, square: Square, direction: Direction) -> BitBoard {
         let mut attacks = BitBoard::ray_mask(square, direction);
         let blocker = attacks & self.occupied();
@@ -388,7 +401,7 @@ impl Board {
         }
 
         // Make new board and event bag
-        let mut board_new = self.clone();
+        let mut board_new = self.duplicate();
         let mut events = Vec::new();
 
         // Reset en passants

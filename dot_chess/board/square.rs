@@ -1,8 +1,8 @@
 use super::file::File;
 use super::rank::Rank;
+use core::convert::TryFrom;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
-use std::convert::TryFrom;
 
 #[derive(
     Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout,
