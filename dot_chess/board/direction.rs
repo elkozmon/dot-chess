@@ -1,7 +1,4 @@
-use ink_storage::{
-    collections::BinaryHeap,
-    traits::{PackedLayout, SpreadLayout, StorageLayout},
-};
+use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 
 #[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]

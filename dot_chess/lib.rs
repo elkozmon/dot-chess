@@ -8,9 +8,7 @@ use ink_lang as ink;
 #[ink::contract]
 mod dot_chess {
 
-    use crate::board::{
-        Board, Event, Flags as BoardFlags, Piece, Ply, PlyFlags, Side, Square, SquareIndex,
-    };
+    use crate::board::{Board, Flags as BoardFlags, Piece, Ply, PlyFlags, Side, Square};
     use crate::zobrist::ZobristHash;
     use ink_storage::Vec;
     use scale::{Decode, Encode};
@@ -114,7 +112,7 @@ mod dot_chess {
         ///
         /// Returns true if move was successful
         #[ink(message)]
-        pub fn make_move(&mut self, from: SquareIndex, to: SquareIndex, flags: PlyFlags) -> bool {
+        pub fn make_move(&mut self, from: Square, to: Square, flags: PlyFlags) -> bool {
             let caller = self.env().caller();
 
             // Assert it's callers turn

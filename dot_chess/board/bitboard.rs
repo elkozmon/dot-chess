@@ -1,8 +1,5 @@
-use super::{
-    square::{Square, SquareIndex, SQUARE_INDEX_RANGE},
-    Direction, File, Rank,
-};
-use bitintr::{Blsfill, Blsmsk, Blsr, Lzcnt, Tzcnt};
+use super::{square::Square, Direction, File, Rank};
+use bitintr::{Blsfill, Blsr, Lzcnt, Tzcnt};
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 
@@ -96,27 +93,9 @@ impl core::ops::Not for BitBoard {
     }
 }
 
-impl core::convert::From<u64> for BitBoard {
-    fn from(num: u64) -> Self {
-        Self(num)
-    }
-}
-
-impl core::convert::Into<u64> for BitBoard {
-    fn into(self) -> u64 {
-        self.0
-    }
-}
-
-impl Blsfill for BitBoard {
-    fn blsfill(self) -> Self {
-        Self(self.0.blsfill())
-    }
-}
-
-impl Blsr for BitBoard {
-    fn blsr(self) -> Self {
-        Self(self.0.blsr())
+impl core::convert::From<Square> for BitBoard {
+    fn from(square: Square) -> Self {
+        Self(1) << square.index() as i32
     }
 }
 
@@ -150,6 +129,30 @@ impl core::convert::From<File> for BitBoard {
     }
 }
 
+impl core::convert::From<u64> for BitBoard {
+    fn from(num: u64) -> Self {
+        Self(num)
+    }
+}
+
+impl core::convert::Into<u64> for BitBoard {
+    fn into(self) -> u64 {
+        self.0
+    }
+}
+
+impl Blsfill for BitBoard {
+    fn blsfill(self) -> Self {
+        Self(self.0.blsfill())
+    }
+}
+
+impl Blsr for BitBoard {
+    fn blsr(self) -> Self {
+        Self(self.0.blsr())
+    }
+}
+
 #[cfg(feature = "std")]
 impl std::fmt::Debug for BitBoard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -162,10 +165,10 @@ impl std::fmt::Debug for BitBoard {
                 .collect()
         };
 
-        writeln!(f, "BitBoard 0x{:x}:", self.0);
+        writeln!(f, "BitBoard 0x{:x}:", self.0)?;
 
         for rank in (1..=8).rev() {
-            writeln!(f, "{} {}", rank, rank_str(rank))?
+            writeln!(f, "{} {}", rank, rank_str(rank))?;
         }
 
         writeln!(f, "  A B C D E F G H")
@@ -203,28 +206,28 @@ impl BitBoard {
 
     // General
 
-    pub fn square(square_index: SquareIndex) -> Self {
-        Self(1) << square_index as i32
+    pub fn square(square: Square) -> Self {
+        Self(1) << square.index() as i32
     }
 
-    pub fn positive(square_index: SquareIndex) -> Self {
-        !Self::square(square_index).blsfill()
+    pub fn positive(square: Square) -> Self {
+        !Self::square(square).blsfill()
     }
 
-    pub fn negative(square_index: SquareIndex) -> Self {
-        Self::square(square_index).blsfill() >> 1
+    pub fn negative(square: Square) -> Self {
+        Self::square(square).blsfill() >> 1
     }
 
-    pub fn rank_mask(square_index: SquareIndex) -> Self {
-        Self(0xffu64) << (square_index as i32 & 56)
+    pub fn rank_mask(square: Square) -> Self {
+        Self(0xffu64) << (square.index() as i32 & 56)
     }
 
-    pub fn file_mask(square_index: SquareIndex) -> Self {
-        Self(0x0101010101010101u64) << (square_index as i32 & 7)
+    pub fn file_mask(square: Square) -> Self {
+        Self(0x0101010101010101u64) << (square.index() as i32 & 7)
     }
 
-    pub fn diagonal_mask(square_index: SquareIndex) -> Self {
-        let square_index = square_index as i32;
+    pub fn diagonal_mask(square: Square) -> Self {
+        let square_index = square.index() as i32;
 
         let diag = 8 * (square_index & 7) - (square_index & 56);
         let nort = -diag & (diag >> 31);
@@ -233,8 +236,8 @@ impl BitBoard {
         (Self(0x8040201008040201u64) >> sout) << nort
     }
 
-    pub fn anti_diagonal_mask(square_index: SquareIndex) -> Self {
-        let square_index = square_index as i32;
+    pub fn anti_diagonal_mask(square: Square) -> Self {
+        let square_index = square.index() as i32;
 
         let diag = 56 - 8 * (square_index & 7) - (square_index & 56);
         let nort = -diag & (diag >> 31);
@@ -243,28 +246,28 @@ impl BitBoard {
         (Self(0x0102040810204080u64) >> sout) << nort
     }
 
-    pub fn in_between_mask(from_square: SquareIndex, to_square: SquareIndex) -> Self {
-        let from_bb = Self::square(from_square);
-        let to_bb = Self::square(to_square);
+    pub fn in_between_mask(from: Square, to: Square) -> Self {
+        let from_bb = Self::square(from);
+        let to_bb = Self::square(to);
 
         let between = ((from_bb.blsfill() ^ to_bb.blsfill()) >> 1).blsr();
 
-        let rank_bb = Self::rank_mask(from_square);
+        let rank_bb = Self::rank_mask(from);
         if rank_bb & to_bb != Self::EMPTY {
             return rank_bb & between;
         }
 
-        let file_bb = Self::file_mask(from_square);
+        let file_bb = Self::file_mask(from);
         if file_bb & to_bb != Self::EMPTY {
             return file_bb & between;
         }
 
-        let diagonal_bb = Self::diagonal_mask(from_square);
+        let diagonal_bb = Self::diagonal_mask(from);
         if diagonal_bb & to_bb != Self::EMPTY {
             return diagonal_bb & between;
         }
 
-        let anti_diagonal_bb = Self::anti_diagonal_mask(from_square);
+        let anti_diagonal_bb = Self::anti_diagonal_mask(from);
         if anti_diagonal_bb & to_bb != Self::EMPTY {
             return anti_diagonal_bb & between;
         }
@@ -272,60 +275,54 @@ impl BitBoard {
         Self::EMPTY
     }
 
-    pub fn ray_mask(square_index: SquareIndex, direction: Direction) -> Self {
+    pub fn ray_mask(square: Square, direction: Direction) -> Self {
         match direction {
-            Direction::North => Self::file_mask(square_index) & Self::positive(square_index),
-            Direction::NorthEast => {
-                Self::diagonal_mask(square_index) & Self::positive(square_index)
-            }
-            Direction::East => Self::rank_mask(square_index) & Self::positive(square_index),
-            Direction::SouthEast => {
-                Self::anti_diagonal_mask(square_index) & Self::negative(square_index)
-            }
-            Direction::South => Self::file_mask(square_index) & Self::negative(square_index),
-            Direction::SouthWest => {
-                Self::diagonal_mask(square_index) & Self::negative(square_index)
-            }
-            Direction::West => Self::rank_mask(square_index) & Self::negative(square_index),
-            Direction::NorthWest => {
-                Self::anti_diagonal_mask(square_index) & Self::positive(square_index)
-            }
+            Direction::North => Self::file_mask(square) & Self::positive(square),
+            Direction::NorthEast => Self::diagonal_mask(square) & Self::positive(square),
+            Direction::East => Self::rank_mask(square) & Self::positive(square),
+            Direction::SouthEast => Self::anti_diagonal_mask(square) & Self::negative(square),
+            Direction::South => Self::file_mask(square) & Self::negative(square),
+            Direction::SouthWest => Self::diagonal_mask(square) & Self::negative(square),
+            Direction::West => Self::rank_mask(square) & Self::negative(square),
+            Direction::NorthWest => Self::anti_diagonal_mask(square) & Self::positive(square),
         }
     }
 
     // Sliding pieces
 
-    pub fn rook_attacks_mask(square_index: SquareIndex) -> Self {
-        Self::file_mask(square_index) ^ Self::rank_mask(square_index)
+    pub fn rook_attacks_mask(square: Square) -> Self {
+        Self::file_mask(square) ^ Self::rank_mask(square)
     }
 
-    pub fn bishop_attacks_mask(square_index: SquareIndex) -> Self {
-        Self::diagonal_mask(square_index) ^ Self::anti_diagonal_mask(square_index)
+    pub fn bishop_attacks_mask(square: Square) -> Self {
+        Self::diagonal_mask(square) ^ Self::anti_diagonal_mask(square)
     }
 
-    pub fn queen_attacks_mask(square_index: SquareIndex) -> Self {
-        Self::rook_attacks_mask(square_index) | Self::bishop_attacks_mask(square_index)
+    pub fn queen_attacks_mask(square: Square) -> Self {
+        Self::rook_attacks_mask(square) | Self::bishop_attacks_mask(square)
     }
 
     // Knights
 
-    pub fn knight_attacks_mask(square_index: SquareIndex) -> Self {
-        let square_index = square_index as i8;
-
+    pub fn knight_attacks_mask(square: Square) -> Self {
         Self::KNIGHT_ATTACKS
             .iter()
-            .filter_map(|i| match square_index + i {
+            .filter_map(|i| match square.index() as i8 + i {
                 i if i >= BitBoard::LENGTH => None,
                 i if i < 0 => None,
-                i => Some(Self::square(i as u8)),
+                i => {
+                    let square: Square = (i as u8).into();
+                    let bitboard: BitBoard = square.into();
+                    Some(bitboard)
+                }
             })
             .fold(Self::EMPTY, |l, r| l | r)
     }
 
     // Kings
 
-    pub fn king_attacks_mask(square_index: SquareIndex) -> Self {
-        let king = Self::square(square_index);
+    pub fn king_attacks_mask(square: Square) -> Self {
+        let king = Self::square(square);
 
         let mut attacks = king.east_one() | king.west_one() | king;
         attacks |= attacks.north_one() | attacks.south_one();
@@ -417,22 +414,28 @@ impl BitBoard {
         (self << 7) & Self::NOT_FILE_H
     }
 
-    pub fn get(&self, square_index: u8) -> bool {
-        ((self.0 >> square_index) & 1) == 1
+    pub fn get(&self, square: Square) -> bool {
+        ((self.0 >> square.index()) & 1) == 1
     }
 
-    pub fn pop_square(&mut self) -> SquareIndex {
-        todo!()
+    pub fn pop_square(&mut self) -> Square {
+        let square = self.bit_scan_forward();
+
+        self.0 ^= (1 << square.index());
+
+        square
     }
 
-    pub fn bit_scan(&self, reverse: bool) -> SquareIndex {
+    pub fn bit_scan_forward(&self) -> Square {
         assert_ne!(self.0, 0);
 
-        if reverse {
-            return 63 - self.0.lzcnt() as u8;
-        }
+        (self.0.tzcnt() as u8).into()
+    }
 
-        self.0.tzcnt() as u8
+    pub fn bit_scan_reverse(&self) -> Square {
+        assert_ne!(self.0, 0);
+
+        (63 - self.0.lzcnt() as u8).into()
     }
 }
 
@@ -444,196 +447,196 @@ mod tests {
 
     #[test]
     fn rank_1_mask() {
-        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_1).index());
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_1));
 
         assert_eq!(bb, BitBoard::RANK_1);
     }
 
     #[test]
     fn rank_2_mask() {
-        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_2).index());
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_2));
 
         assert_eq!(bb, BitBoard::RANK_2);
     }
 
     #[test]
     fn rank_3_mask() {
-        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_3).index());
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_3));
 
         assert_eq!(bb, BitBoard::RANK_3);
     }
 
     #[test]
     fn rank_4_mask() {
-        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_4).index());
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_4));
 
         assert_eq!(bb, BitBoard::RANK_4);
     }
 
     #[test]
     fn rank_5_mask() {
-        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_5).index());
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_5));
 
         assert_eq!(bb, BitBoard::RANK_5);
     }
 
     #[test]
     fn rank_6_mask() {
-        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_6).index());
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_6));
 
         assert_eq!(bb, BitBoard::RANK_6);
     }
 
     #[test]
     fn rank_7_mask() {
-        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_7).index());
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_7));
 
         assert_eq!(bb, BitBoard::RANK_7);
     }
 
     #[test]
     fn rank_8_mask() {
-        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_8).index());
+        let bb = BitBoard::rank_mask(Square::new(File::H, Rank::_8));
 
         assert_eq!(bb, BitBoard::RANK_8);
     }
 
     #[test]
     fn file_a_mask() {
-        let bb = BitBoard::file_mask(Square::new(File::A, Rank::_3).index());
+        let bb = BitBoard::file_mask(Square::new(File::A, Rank::_3));
 
         assert_eq!(bb, BitBoard::FILE_A);
     }
 
     #[test]
     fn file_b_mask() {
-        let bb = BitBoard::file_mask(Square::new(File::B, Rank::_3).index());
+        let bb = BitBoard::file_mask(Square::new(File::B, Rank::_3));
 
         assert_eq!(bb, BitBoard::FILE_B);
     }
 
     #[test]
     fn file_c_mask() {
-        let bb = BitBoard::file_mask(Square::new(File::C, Rank::_3).index());
+        let bb = BitBoard::file_mask(Square::new(File::C, Rank::_3));
 
         assert_eq!(bb, BitBoard::FILE_C);
     }
 
     #[test]
     fn file_d_mask() {
-        let bb = BitBoard::file_mask(Square::new(File::D, Rank::_3).index());
+        let bb = BitBoard::file_mask(Square::new(File::D, Rank::_3));
 
         assert_eq!(bb, BitBoard::FILE_D);
     }
 
     #[test]
     fn file_e_mask() {
-        let bb = BitBoard::file_mask(Square::new(File::E, Rank::_3).index());
+        let bb = BitBoard::file_mask(Square::new(File::E, Rank::_3));
 
         assert_eq!(bb, BitBoard::FILE_E);
     }
 
     #[test]
     fn file_f_mask() {
-        let bb = BitBoard::file_mask(Square::new(File::F, Rank::_3).index());
+        let bb = BitBoard::file_mask(Square::new(File::F, Rank::_3));
 
         assert_eq!(bb, BitBoard::FILE_F);
     }
 
     #[test]
     fn file_g_mask() {
-        let bb = BitBoard::file_mask(Square::new(File::G, Rank::_3).index());
+        let bb = BitBoard::file_mask(Square::new(File::G, Rank::_3));
 
         assert_eq!(bb, BitBoard::FILE_G);
     }
 
     #[test]
     fn file_h_mask() {
-        let bb = BitBoard::file_mask(Square::new(File::H, Rank::_1).index());
+        let bb = BitBoard::file_mask(Square::new(File::H, Rank::_1));
 
         assert_eq!(bb, BitBoard::FILE_H);
     }
 
     #[test]
     fn diagonal_mask_b3() {
-        let bb = BitBoard::diagonal_mask(Square::new(File::B, Rank::_3).index());
+        let bb = BitBoard::diagonal_mask(Square::new(File::B, Rank::_3));
 
         assert_eq!(bb, BitBoard(0x4020100804020100));
     }
 
     #[test]
     fn anti_diagonal_mask_b3() {
-        let bb = BitBoard::anti_diagonal_mask(Square::new(File::B, Rank::_3).index());
+        let bb = BitBoard::anti_diagonal_mask(Square::new(File::B, Rank::_3));
 
         assert_eq!(bb, BitBoard(0x1020408));
     }
 
     #[test]
     fn square_h8() {
-        let bb = BitBoard::square(Square::new(File::H, Rank::_8).index());
+        let bb = BitBoard::square(Square::new(File::H, Rank::_8));
 
         assert_eq!(bb, BitBoard(0x8000000000000000));
     }
 
     #[test]
     fn square_a1() {
-        let bb = BitBoard::square(Square::new(File::A, Rank::_1).index());
+        let bb = BitBoard::square(Square::new(File::A, Rank::_1));
 
         assert_eq!(bb, BitBoard(0x1));
     }
 
     #[test]
     fn square_a2() {
-        let bb = BitBoard::square(Square::new(File::A, Rank::_2).index());
+        let bb = BitBoard::square(Square::new(File::A, Rank::_2));
 
         assert_eq!(bb, BitBoard(0x100));
     }
 
     #[test]
     fn square_b2() {
-        let bb = BitBoard::square(Square::new(File::B, Rank::_2).index());
+        let bb = BitBoard::square(Square::new(File::B, Rank::_2));
 
         assert_eq!(bb, BitBoard(0x200));
     }
 
     #[test]
     fn queen_e6_attacks_mask() {
-        let bb = BitBoard::queen_attacks_mask(Square::new(File::E, Rank::_6).index());
+        let bb = BitBoard::queen_attacks_mask(Square::new(File::E, Rank::_6));
 
         assert_eq!(bb, BitBoard(0x5438ef3854921110));
     }
 
     #[test]
     fn rook_e6_attacks_mask() {
-        let bb = BitBoard::rook_attacks_mask(Square::new(File::E, Rank::_6).index());
+        let bb = BitBoard::rook_attacks_mask(Square::new(File::E, Rank::_6));
 
         assert_eq!(bb, BitBoard(0x1010ef1010101010));
     }
 
     #[test]
     fn bishop_e6_attacks_mask() {
-        let bb = BitBoard::bishop_attacks_mask(Square::new(File::E, Rank::_6).index());
+        let bb = BitBoard::bishop_attacks_mask(Square::new(File::E, Rank::_6));
 
         assert_eq!(bb, BitBoard(0x4428002844820100));
     }
 
     #[test]
     fn king_a1_attacks_mask() {
-        let bb = BitBoard::king_attacks_mask(Square::new(File::A, Rank::_1).index());
+        let bb = BitBoard::king_attacks_mask(Square::new(File::A, Rank::_1));
 
         assert_eq!(bb, BitBoard(0x302));
     }
 
     #[test]
     fn king_h7_attacks_mask() {
-        let bb = BitBoard::king_attacks_mask(Square::new(File::H, Rank::_7).index());
+        let bb = BitBoard::king_attacks_mask(Square::new(File::H, Rank::_7));
 
         assert_eq!(bb, BitBoard(0xc040c00000000000));
     }
 
     #[test]
     fn king_d3_attacks_mask() {
-        let bb = BitBoard::king_attacks_mask(Square::new(File::D, Rank::_3).index());
+        let bb = BitBoard::king_attacks_mask(Square::new(File::D, Rank::_3));
 
         assert_eq!(bb, BitBoard(0x1c141c00));
     }
@@ -652,7 +655,7 @@ mod tests {
         ];
 
         for square in squares.iter() {
-            white_pawns |= BitBoard::square(square.index());
+            white_pawns |= BitBoard::square(*square);
         }
 
         assert_eq!(
@@ -675,7 +678,7 @@ mod tests {
         ];
 
         for square in squares.iter() {
-            white_pawns |= BitBoard::square(square.index());
+            white_pawns |= BitBoard::square(*square);
         }
 
         assert_eq!(
@@ -698,7 +701,7 @@ mod tests {
         ];
 
         for square in squares.iter() {
-            white_pawns |= BitBoard::square(square.index());
+            white_pawns |= BitBoard::square(*square);
         }
 
         assert_eq!(
@@ -721,7 +724,7 @@ mod tests {
         ];
 
         for square in squares.iter() {
-            white_pawns |= BitBoard::square(square.index());
+            white_pawns |= BitBoard::square(*square);
         }
 
         assert_eq!(
@@ -744,7 +747,7 @@ mod tests {
         ];
 
         for square in squares.iter() {
-            white_pawns |= BitBoard::square(square.index());
+            white_pawns |= BitBoard::square(*square);
         }
 
         assert_eq!(
@@ -767,7 +770,7 @@ mod tests {
         ];
 
         for square in squares.iter() {
-            black_pawns |= BitBoard::square(square.index());
+            black_pawns |= BitBoard::square(*square);
         }
 
         assert_eq!(
@@ -790,7 +793,7 @@ mod tests {
         ];
 
         for square in squares.iter() {
-            black_pawns |= BitBoard::square(square.index());
+            black_pawns |= BitBoard::square(*square);
         }
 
         assert_eq!(
@@ -813,7 +816,7 @@ mod tests {
         ];
 
         for square in squares.iter() {
-            black_pawns |= BitBoard::square(square.index());
+            black_pawns |= BitBoard::square(*square);
         }
 
         assert_eq!(
@@ -836,7 +839,7 @@ mod tests {
         ];
 
         for square in squares.iter() {
-            black_pawns |= BitBoard::square(square.index());
+            black_pawns |= BitBoard::square(*square);
         }
 
         assert_eq!(
@@ -859,7 +862,7 @@ mod tests {
         ];
 
         for square in squares.iter() {
-            black_pawns |= BitBoard::square(square.index());
+            black_pawns |= BitBoard::square(*square);
         }
 
         assert_eq!(
@@ -870,105 +873,105 @@ mod tests {
 
     #[test]
     fn north_one_h1() {
-        let bb = BitBoard::square(Square::new(File::H, Rank::_1).index()).north_one();
+        let bb = BitBoard::square(Square::new(File::H, Rank::_1)).north_one();
 
         assert_eq!(bb, BitBoard(0x8000));
     }
 
     #[test]
     fn north_one_a8() {
-        let bb = BitBoard::square(Square::new(File::A, Rank::_8).index()).north_one();
+        let bb = BitBoard::square(Square::new(File::A, Rank::_8)).north_one();
 
         assert_eq!(bb, BitBoard::EMPTY);
     }
 
     #[test]
     fn north_east_one_g1() {
-        let bb = BitBoard::square(Square::new(File::G, Rank::_1).index()).north_east_one();
+        let bb = BitBoard::square(Square::new(File::G, Rank::_1)).north_east_one();
 
         assert_eq!(bb, BitBoard(0x8000));
     }
 
     #[test]
     fn north_west_one_g1() {
-        let bb = BitBoard::square(Square::new(File::G, Rank::_1).index()).north_west_one();
+        let bb = BitBoard::square(Square::new(File::G, Rank::_1)).north_west_one();
 
         assert_eq!(bb, BitBoard(0x2000));
     }
 
     #[test]
     fn east_one_g2() {
-        let bb = BitBoard::square(Square::new(File::G, Rank::_2).index()).east_one();
+        let bb = BitBoard::square(Square::new(File::G, Rank::_2)).east_one();
 
         assert_eq!(bb, BitBoard(0x8000));
     }
 
     #[test]
     fn west_one_g2() {
-        let bb = BitBoard::square(Square::new(File::G, Rank::_2).index()).west_one();
+        let bb = BitBoard::square(Square::new(File::G, Rank::_2)).west_one();
 
         assert_eq!(bb, BitBoard(0x2000));
     }
 
     #[test]
     fn south_one_g2() {
-        let bb = BitBoard::square(Square::new(File::G, Rank::_2).index()).south_one();
+        let bb = BitBoard::square(Square::new(File::G, Rank::_2)).south_one();
 
         assert_eq!(bb, BitBoard(0x40));
     }
 
     #[test]
     fn south_one_g1() {
-        let bb = BitBoard::square(Square::new(File::G, Rank::_1).index()).south_one();
+        let bb = BitBoard::square(Square::new(File::G, Rank::_1)).south_one();
 
         assert_eq!(bb, BitBoard::EMPTY);
     }
 
     #[test]
     fn south_west_one_g2() {
-        let bb = BitBoard::square(Square::new(File::G, Rank::_2).index()).south_west_one();
+        let bb = BitBoard::square(Square::new(File::G, Rank::_2)).south_west_one();
 
         assert_eq!(bb, BitBoard(0x20));
     }
 
     #[test]
     fn south_east_one_g2() {
-        let bb = BitBoard::square(Square::new(File::G, Rank::_2).index()).south_east_one();
+        let bb = BitBoard::square(Square::new(File::G, Rank::_2)).south_east_one();
 
         assert_eq!(bb, BitBoard(0x80));
     }
 
     #[test]
     fn get_g2_true() {
-        let bb = BitBoard::square(Square::new(File::G, Rank::_2).index());
+        let bb = BitBoard::square(Square::new(File::G, Rank::_2));
 
-        assert_eq!(bb.get(Square::new(File::G, Rank::_2).index()), true);
+        assert_eq!(bb.get(Square::new(File::G, Rank::_2)), true);
     }
 
     #[test]
     fn get_g2_false() {
-        let bb = !BitBoard::square(Square::new(File::G, Rank::_2).index());
+        let bb = !BitBoard::square(Square::new(File::G, Rank::_2));
 
-        assert_eq!(bb.get(Square::new(File::G, Rank::_2).index()), false);
+        assert_eq!(bb.get(Square::new(File::G, Rank::_2)), false);
     }
 
     #[test]
     fn neg_bitboard() {
-        let bb = !BitBoard::square(Square::new(File::G, Rank::_2).index());
+        let bb = !BitBoard::square(Square::new(File::G, Rank::_2));
 
         assert_eq!(bb, BitBoard(0xffffffffffffbfff));
     }
 
     #[test]
     fn ray_mask_sw_g5() {
-        let bb = BitBoard::ray_mask(Square::new(File::G, Rank::_5).index(), Direction::SouthWest);
+        let bb = BitBoard::ray_mask(Square::new(File::G, Rank::_5), Direction::SouthWest);
 
         assert_eq!(bb, BitBoard(0x20100804));
     }
 
     #[test]
     fn ray_mask_nw_g5() {
-        let bb = BitBoard::ray_mask(Square::new(File::G, Rank::_5).index(), Direction::NorthWest);
+        let bb = BitBoard::ray_mask(Square::new(File::G, Rank::_5), Direction::NorthWest);
 
         assert_eq!(bb, BitBoard(0x810200000000000));
     }
@@ -976,8 +979,8 @@ mod tests {
     #[test]
     fn in_between_mask_a1_h8() {
         let bb = BitBoard::in_between_mask(
-            Square::new(File::A, Rank::_1).index(),
-            Square::new(File::H, Rank::_8).index(),
+            Square::new(File::A, Rank::_1),
+            Square::new(File::H, Rank::_8),
         );
 
         assert_eq!(bb, BitBoard(0x40201008040200));
@@ -986,8 +989,8 @@ mod tests {
     #[test]
     fn in_between_mask_h8_a1() {
         let bb = BitBoard::in_between_mask(
-            Square::new(File::H, Rank::_8).index(),
-            Square::new(File::A, Rank::_1).index(),
+            Square::new(File::H, Rank::_8),
+            Square::new(File::A, Rank::_1),
         );
 
         assert_eq!(bb, BitBoard(0x40201008040200));
@@ -996,8 +999,8 @@ mod tests {
     #[test]
     fn in_between_mask_g8_a1() {
         let bb = BitBoard::in_between_mask(
-            Square::new(File::G, Rank::_8).index(),
-            Square::new(File::A, Rank::_1).index(),
+            Square::new(File::G, Rank::_8),
+            Square::new(File::A, Rank::_1),
         );
 
         assert_eq!(bb, BitBoard::EMPTY);
@@ -1006,8 +1009,8 @@ mod tests {
     #[test]
     fn in_between_mask_a1_a8() {
         let bb = BitBoard::in_between_mask(
-            Square::new(File::A, Rank::_1).index(),
-            Square::new(File::A, Rank::_8).index(),
+            Square::new(File::A, Rank::_1),
+            Square::new(File::A, Rank::_8),
         );
 
         assert_eq!(bb, BitBoard(0x1010101010100));
@@ -1016,8 +1019,8 @@ mod tests {
     #[test]
     fn in_between_mask_b4_g4() {
         let bb = BitBoard::in_between_mask(
-            Square::new(File::B, Rank::_4).index(),
-            Square::new(File::G, Rank::_4).index(),
+            Square::new(File::B, Rank::_4),
+            Square::new(File::G, Rank::_4),
         );
 
         assert_eq!(bb, BitBoard(0x3c000000));

@@ -127,9 +127,7 @@ impl ZobristHash {
                 Piece::King => 5,
             };
 
-        let square_index: usize = square.index().into();
-
-        index + square_index
+        index + square.index() as usize
     }
 
     fn get_en_passant_hash_key_index(file: File) -> usize {
@@ -220,8 +218,8 @@ impl ZobristHash {
                     let hash_key = ZOBRIST_KEYS[hash_key_index];
                     hash ^= hash_key;
                 }
-                Event::EnPassantOpened(file) | Event::EnPassantClosed(square) => {
-                    let hash_key_index = Self::get_en_passant_hash_key_index(file);
+                Event::EnPassantOpened(file) | Event::EnPassantClosed(file) => {
+                    let hash_key_index = Self::get_en_passant_hash_key_index(*file);
                     let hash_key = ZOBRIST_KEYS[hash_key_index];
                     hash ^= hash_key;
                 }
@@ -243,7 +241,7 @@ mod tests {
         let index = ZobristHash::get_piece_hash_key_index(
             Side::White,
             Piece::Pawn,
-            Square::new(File::A, Rank::_1),
+            Square::new(File::A, Rank::_1).into(),
         );
 
         assert_eq!(index, 0);
@@ -254,7 +252,7 @@ mod tests {
         let index = ZobristHash::get_piece_hash_key_index(
             Side::White,
             Piece::King,
-            Square::new(File::H, Rank::_8),
+            Square::new(File::H, Rank::_8).into(),
         );
 
         assert_eq!(index, 383);
@@ -265,7 +263,7 @@ mod tests {
         let index = ZobristHash::get_piece_hash_key_index(
             Side::Black,
             Piece::Pawn,
-            Square::new(File::A, Rank::_1),
+            Square::new(File::A, Rank::_1).into(),
         );
 
         assert_eq!(index, 384);
@@ -276,7 +274,7 @@ mod tests {
         let index = ZobristHash::get_piece_hash_key_index(
             Side::Black,
             Piece::King,
-            Square::new(File::H, Rank::_8),
+            Square::new(File::H, Rank::_8).into(),
         );
 
         assert_eq!(index, 767);

@@ -1,77 +1,40 @@
 use super::file::File;
 use super::rank::Rank;
-use crate::board::Error;
-use core::ops::Range;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 use std::convert::TryFrom;
-
-// TODO to pub struct with From/Into impls
-pub type SquareIndex = u8;
-
-pub const SQUARE_INDEX_RANGE: Range<u8> = 0..64;
 
 #[derive(
     Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout,
 )]
 #[cfg_attr(feature = "std", derive(Debug, scale_info::TypeInfo, StorageLayout))]
-pub struct Square {
-    index: SquareIndex,
-    file: File,
-    rank: Rank,
-}
+pub struct Square(u8);
 
-impl core::convert::From<SquareIndex> for Square {
-    fn into(self) -> Square {
-        let file = File::try_from(index & 7).unwrap();
-        let rank = Rank::try_from(index >> 3).unwrap();
-
-        Self { index, file, rank }
-    }
-}
-
-impl core::convert::Into<SquareIndex> for Square {
-    fn into(self) -> SquareIndex {
-        self.index
+impl core::convert::From<u8> for Square {
+    fn from(val: u8) -> Self {
+        Self(val)
     }
 }
 
 impl core::convert::Into<File> for Square {
     fn into(self) -> File {
-        self.file
+        File::try_from(self.index() & 7).unwrap()
     }
 }
 
 impl core::convert::Into<Rank> for Square {
     fn into(self) -> Rank {
-        self.rank
+        Rank::try_from(self.index() >> 3).unwrap()
     }
 }
 
 impl Square {
     pub fn new(file: File, rank: Rank) -> Self {
-        let index = 8 * rank.index() + file.index();
-
-        Self { index, file, rank }
+        Self::from(8 * rank.index() + file.index())
     }
 
-    pub fn from_index(index: SquareIndex) -> Self {
-        let file = File::try_from(index & 7).unwrap();
-        let rank = Rank::try_from(index >> 3).unwrap();
-
-        Self { index, file, rank }
-    }
-
-    pub fn index(&self) -> SquareIndex {
-        self.index
-    }
-
-    pub fn file(&self) -> File {
-        self.file
-    }
-
-    pub fn rank(&self) -> Rank {
-        self.rank
+    pub fn index(&self) -> u8 {
+        self.0
     }
 }
 
@@ -88,11 +51,12 @@ mod tests {
 
     #[test]
     fn square_from_index() {
-        let index = 9u8;
-        let square = Square::from_index(index);
+        let square: Square = 9u8.into();
+        let file: File = square.into();
+        let rank: Rank = square.into();
 
-        assert_eq!(square.file(), File::B);
-        assert_eq!(square.rank(), Rank::_2);
+        assert_eq!(file, File::B);
+        assert_eq!(rank, Rank::_2);
     }
 
     #[test]
