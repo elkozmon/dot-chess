@@ -218,7 +218,7 @@ impl Board {
         // Assert king not attacked
         let side_moved = self.get_side_turn();
         let king_square = board.get_king_square(side_moved);
-        if board.attackers_to(king_square).not_empty() {
+        if board.is_attacked(king_square, side_moved.flip()) {
             return Err(Error::IllegalMove);
         }
 
@@ -238,7 +238,7 @@ impl Board {
                 // Assert king not attacked
                 let side_moved = self.get_side_turn();
                 let king_square = board.get_king_square(side_moved);
-                if board.attackers_to(king_square).not_empty() {
+                if board.is_attacked(king_square, side_moved.flip()) {
                     continue;
                 }
 
@@ -332,13 +332,51 @@ impl Board {
     }
 
     fn get_king_square(&self, side: Side) -> Square {
-        todo!()
+        let pieces = match side {
+            Side::White => self.white,
+            Side::Black => self.black,
+        };
+
+        (pieces & self.kings).pop_square()
     }
 
-    fn attackers_to(&self, square: Square) -> BitBoard {
-        todo!()
+    // TODO test
+    fn is_attacked(&self, square: Square, by_side: Side) -> bool {
+        let bitboard = BitBoard::square(square);
+        let attack_pieces = match by_side {
+            Side::White => self.white,
+            Side::Black => self.black,
+        };
+
+        let pawns = attack_pieces & self.pawns;
+        if (bitboard.black_pawn_any_attacks_mask() & pawns).not_empty() {
+            return true;
+        }
+
+        let knights = attack_pieces & self.knights;
+        if (BitBoard::knight_attacks_mask(square) & knights).not_empty() {
+            return true;
+        }
+
+        let kings = attack_pieces & self.kings;
+        if (BitBoard::king_attacks_mask(square) & kings).not_empty() {
+            return true;
+        }
+
+        let bishopsQueens = attack_pieces & (self.bishops | self.queens);
+        if (self.bishop_attacks(square) & bishopsQueens).not_empty() {
+            return true;
+        }
+
+        let rooksQueens = attack_pieces & (self.rooks | self.queens);
+        if (self.rook_attacks(square) & rooksQueens).not_empty() {
+            return true;
+        }
+
+        false
     }
 
+    // TODO test
     fn try_make_pseudo_legal_move(&self, ply: Ply) -> Result<(Self, Vec<Event>), Error> {
         // Assert sides turn
         let (side, piece) = self
