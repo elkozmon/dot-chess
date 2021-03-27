@@ -9,8 +9,8 @@ pub enum Event {
     PieceLeftSquare(Side, Piece, Square),
     PieceEnteredSquare(Side, Piece, Square),
     NextTurn(Side),
-    QueenCastlingRightLost(Side),
-    KingCastlingRightLost(Side),
+    QueenSideCastlingRightLost(Side),
+    KingSideCastlingRightLost(Side),
     EnPassantOpened(File),
     EnPassantClosed(File),
 }

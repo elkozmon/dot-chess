@@ -358,74 +358,180 @@ impl Board {
             events.push(Event::EnPassantClosed(*file));
         }
 
+        let from = ply.from();
+        let to = ply.to();
+
         board_new.flags.reset_en_passant_open_files();
 
         let opponent_side = side.flip();
+        let opponent_pieces = self.get_pieces_by_side(opponent_side);
 
         // Move & capture pieces
         match piece {
             Piece::Pawn => {
-                let from_file: File = ply.from().into();
-                let to_file: File = ply.to().into();
-
-                let opponent_pieces = self.get_pieces_by_side(opponent_side);
+                let from_file: File = from.into();
+                let to_file: File = to.into();
 
                 // Is capture?
                 if from_file != to_file {
-                    let en_passant = (BitBoard::square(ply.to()) & opponent_pieces).is_empty();
+                    let en_passant = (BitBoard::square(to) & opponent_pieces).is_empty();
                     let captured_square = if en_passant {
                         match side {
-                            Side::White => BitBoard::from(ply.to()).south_one().pop_square(),
-                            Side::Black => BitBoard::from(ply.to()).north_one().pop_square(),
+                            Side::White => BitBoard::from(to).south_one().pop_square(),
+                            Side::Black => BitBoard::from(to).north_one().pop_square(),
                         }
                     } else {
-                        ply.to()
+                        to
                     };
 
-                    let (captured_side, captured_piece) =
-                        board_new.get_piece_at(captured_square).unwrap();
+                    let (_, captured_piece) = board_new.get_piece_at(captured_square).unwrap();
 
                     board_new.clear_piece(captured_square);
 
                     events.push(Event::PieceLeftSquare(
-                        captured_side,
+                        opponent_side,
                         captured_piece,
                         captured_square,
                     ));
                 } else {
                     // Is double push?
-                    let rank_from: Rank = ply.from().into();
-                    let rank_to: Rank = ply.to().into();
+                    let rank_from: Rank = from.into();
+                    let rank_to: Rank = to.into();
 
                     if let (Rank::_2, Rank::_4) | (Rank::_7, Rank::_5) = (rank_from, rank_to) {
-                        let file: File = ply.to().into();
+                        let file: File = to.into();
                         board_new.flags.set_en_passant_open(file, true);
                         events.push(Event::EnPassantOpened(file));
                     }
                 }
-
-                board_new.clear_piece(ply.from());
-                board_new.set_piece(side, piece, ply.to());
-
-                events.push(Event::PieceLeftSquare(side, piece, ply.from()));
-                events.push(Event::PieceEnteredSquare(side, piece, ply.to()));
-            }
-            Piece::Knight => {
-                todo!()
-            }
-            Piece::Bishop => {
-                todo!()
-            }
-            Piece::Rook => {
-                todo!()
-            }
-            Piece::Queen => {
-                todo!()
             }
             Piece::King => {
-                todo!()
+                // Handle captures
+                let is_capture = (BitBoard::square(to) & opponent_pieces).not_empty();
+                if is_capture {
+                    let (_, captured_piece) = board_new.get_piece_at(to).unwrap();
+                    board_new.clear_piece(to);
+                    events.push(Event::PieceLeftSquare(opponent_side, captured_piece, to));
+                } else {
+                    let (
+                        king_square,
+                        cstl_ks_k_square,
+                        cstl_ks_r_from_square,
+                        cstl_ks_r_to_square,
+                        cstl_qs_k_square,
+                        cstl_qs_r_from_square,
+                        cstl_qs_r_to_square,
+                    ) = match side {
+                        Side::White => (
+                            Square::E1,
+                            Square::G1,
+                            Square::H1,
+                            Square::F1,
+                            Square::C1,
+                            Square::A1,
+                            Square::D1,
+                        ),
+                        Side::Black => (
+                            Square::E8,
+                            Square::G8,
+                            Square::H8,
+                            Square::F8,
+                            Square::C8,
+                            Square::A8,
+                            Square::D8,
+                        ),
+                    };
+
+                    // Is castling?
+                    if from == king_square {
+                        match to {
+                            to if to == cstl_ks_k_square => {
+                                board_new.clear_piece(cstl_ks_r_from_square);
+                                board_new.set_piece(side, Piece::Rook, cstl_ks_r_to_square);
+
+                                events.push(Event::PieceLeftSquare(
+                                    side,
+                                    Piece::Rook,
+                                    cstl_ks_r_from_square,
+                                ));
+                                events.push(Event::PieceEnteredSquare(
+                                    side,
+                                    Piece::Rook,
+                                    cstl_ks_r_to_square,
+                                ));
+                            }
+                            to if to == cstl_qs_k_square => {
+                                board_new.clear_piece(cstl_qs_r_from_square);
+                                board_new.set_piece(side, Piece::Rook, cstl_qs_r_to_square);
+
+                                events.push(Event::PieceLeftSquare(
+                                    side,
+                                    Piece::Rook,
+                                    cstl_qs_r_from_square,
+                                ));
+                                events.push(Event::PieceEnteredSquare(
+                                    side,
+                                    Piece::Rook,
+                                    cstl_qs_r_to_square,
+                                ));
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                // Revoke castling rights if not already
+                if self.get_flags().get_king_side_castling_right(side) {
+                    board_new.flags.set_king_side_castling_right(side, false);
+                    events.push(Event::KingSideCastlingRightLost(side));
+                }
+
+                if self.get_flags().get_queen_side_castling_right(side) {
+                    board_new.flags.set_queen_side_castling_right(side, false);
+                    events.push(Event::QueenSideCastlingRightLost(side));
+                }
+            }
+            Piece::Knight | Piece::Bishop | Piece::Queen => {
+                // Handle captures
+                let is_capture = (BitBoard::square(to) & opponent_pieces).not_empty();
+                if is_capture {
+                    let (_, captured_piece) = board_new.get_piece_at(to).unwrap();
+                    board_new.clear_piece(to);
+                    events.push(Event::PieceLeftSquare(opponent_side, captured_piece, to));
+                }
+            }
+            Piece::Rook => {
+                // Handle captures
+                let is_capture = (BitBoard::square(to) & opponent_pieces).not_empty();
+                if is_capture {
+                    let (_, captured_piece) = board_new.get_piece_at(to).unwrap();
+                    board_new.clear_piece(to);
+                    events.push(Event::PieceLeftSquare(opponent_side, captured_piece, to));
+                }
+
+                // Revoke castling rights
+                let (king_side_origin, queen_side_origin) = match side {
+                    Side::White => (Square::H1, Square::A1),
+                    Side::Black => (Square::H8, Square::A8),
+                };
+
+                if from == king_side_origin && self.get_flags().get_king_side_castling_right(side) {
+                    board_new.flags.set_king_side_castling_right(side, false);
+                    events.push(Event::KingSideCastlingRightLost(side));
+                } else if from == queen_side_origin
+                    && self.get_flags().get_queen_side_castling_right(side)
+                {
+                    board_new.flags.set_queen_side_castling_right(side, false);
+                    events.push(Event::QueenSideCastlingRightLost(side));
+                }
             }
         }
+
+        board_new.clear_piece(from);
+        board_new.set_piece(side, piece, to);
+
+        events.push(Event::PieceLeftSquare(side, piece, from));
+        events.push(Event::PieceEnteredSquare(side, piece, to));
 
         events.push(Event::NextTurn(opponent_side));
 
@@ -509,68 +615,19 @@ impl Board {
 
     fn set_piece(&mut self, side: Side, piece: Piece, square: Square) {
         let bb = BitBoard::square(square);
-        let not_bb = !bb;
 
         match side {
-            Side::White => {
-                self.black &= not_bb;
-                self.white |= bb;
-            }
-            Side::Black => {
-                self.white &= not_bb;
-                self.black |= bb;
-            }
+            Side::White => self.white |= bb,
+            Side::Black => self.black |= bb,
         }
 
         match piece {
-            Piece::Pawn => {
-                self.pawns |= bb;
-                self.knights &= not_bb;
-                self.bishops &= not_bb;
-                self.rooks &= not_bb;
-                self.queens &= not_bb;
-                self.kings &= not_bb;
-            }
-            Piece::Knight => {
-                self.pawns &= not_bb;
-                self.knights |= bb;
-                self.bishops &= not_bb;
-                self.rooks &= not_bb;
-                self.queens &= not_bb;
-                self.kings &= not_bb;
-            }
-            Piece::Bishop => {
-                self.pawns &= not_bb;
-                self.knights &= not_bb;
-                self.bishops |= bb;
-                self.rooks &= not_bb;
-                self.queens &= not_bb;
-                self.kings &= not_bb;
-            }
-            Piece::Rook => {
-                self.pawns &= not_bb;
-                self.knights &= not_bb;
-                self.bishops &= not_bb;
-                self.rooks |= bb;
-                self.queens &= not_bb;
-                self.kings &= not_bb;
-            }
-            Piece::Queen => {
-                self.pawns &= not_bb;
-                self.knights &= not_bb;
-                self.bishops &= not_bb;
-                self.rooks &= not_bb;
-                self.queens |= bb;
-                self.kings &= not_bb;
-            }
-            Piece::King => {
-                self.pawns &= not_bb;
-                self.knights &= not_bb;
-                self.bishops &= not_bb;
-                self.rooks &= not_bb;
-                self.queens &= not_bb;
-                self.kings |= bb;
-            }
+            Piece::Pawn => self.pawns |= bb,
+            Piece::Knight => self.knights |= bb,
+            Piece::Bishop => self.bishops |= bb,
+            Piece::Rook => self.rooks |= bb,
+            Piece::Queen => self.queens |= bb,
+            Piece::King => self.kings |= bb,
         }
     }
 

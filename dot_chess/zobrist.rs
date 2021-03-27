@@ -208,12 +208,12 @@ impl ZobristHash {
                 Event::NextTurn(Side::White) => {
                     hash ^= ZOBRIST_KEYS[Self::WHITE_TURN_HASH_KEY_INDEX];
                 }
-                Event::QueenCastlingRightLost(side) => {
+                Event::QueenSideCastlingRightLost(side) => {
                     let hash_key_index = Self::get_queen_castling_right_hash_key_index(*side);
                     let hash_key = ZOBRIST_KEYS[hash_key_index];
                     hash ^= hash_key;
                 }
-                Event::KingCastlingRightLost(side) => {
+                Event::KingSideCastlingRightLost(side) => {
                     let hash_key_index = Self::get_king_castling_right_hash_key_index(*side);
                     let hash_key = ZOBRIST_KEYS[hash_key_index];
                     hash ^= hash_key;

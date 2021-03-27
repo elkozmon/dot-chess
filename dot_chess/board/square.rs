@@ -29,6 +29,21 @@ impl core::convert::Into<Rank> for Square {
 }
 
 impl Square {
+    pub const A1: Self = Self(0);
+    pub const C1: Self = Self(2);
+    pub const D1: Self = Self(3);
+    pub const E1: Self = Self(4);
+    pub const F1: Self = Self(5);
+    pub const G1: Self = Self(6);
+    pub const H1: Self = Self(7);
+    pub const A8: Self = Self(56);
+    pub const C8: Self = Self(58);
+    pub const D8: Self = Self(59);
+    pub const E8: Self = Self(60);
+    pub const F8: Self = Self(61);
+    pub const G8: Self = Self(62);
+    pub const H8: Self = Self(63);
+
     pub fn new(file: File, rank: Rank) -> Self {
         Self::from(8 * rank.index() + file.index())
     }
