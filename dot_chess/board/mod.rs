@@ -147,10 +147,11 @@ pub struct Board {
     knights: BitBoard,
     pawns: BitBoard,
     flags: Flags,
+    halfmove_clock: u32,
 }
 
 impl Board {
-    pub fn new(pieces: Vec<(Side, Piece, Square)>, flags: Flags) -> Self {
+    pub fn new(pieces: Vec<(Side, Piece, Square)>, flags: Flags, halfmove_clock: u32) -> Self {
         let mut black = BitBoard::EMPTY;
         let mut white = BitBoard::EMPTY;
         let mut kings = BitBoard::EMPTY;
@@ -188,6 +189,7 @@ impl Board {
             knights,
             pawns,
             flags,
+            halfmove_clock,
         }
     }
 
@@ -202,13 +204,18 @@ impl Board {
             knights: 0x4200000000000042.into(),
             pawns: 0xff00000000ff00.into(),
             flags: Flags::default(),
+            halfmove_clock: 0,
         }
+    }
+
+    pub fn halfmove_clock(&self) -> u32 {
+        self.halfmove_clock
     }
 
     // TODO test
     pub fn try_make_move(&self, ply: Ply) -> Result<(Self, Vec<Event>), Error> {
         // Assert move is pseudo legal
-        if (self.get_pseudo_legal_moves(ply.from()) & BitBoard::square(ply.to())).is_empty() {
+        if (self.get_pseudo_legal_moves_from(ply.from()) & BitBoard::square(ply.to())).is_empty() {
             return Err(Error::IllegalMove);
         }
 
@@ -225,9 +232,24 @@ impl Board {
     }
 
     // TODO test
-    pub fn get_legal_moves(&self, from: Square) -> BitBoard {
+    pub fn side_has_legal_move(&self, side: Side) -> bool {
+        let mut pieces = self.get_pieces_by_side(side);
+
+        while pieces.not_empty() {
+            let square = pieces.pop_square();
+
+            if self.get_legal_moves_from(square).not_empty() {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    // TODO test
+    pub fn get_legal_moves_from(&self, from: Square) -> BitBoard {
         let mut moves = BitBoard::EMPTY;
-        let mut move_bb = self.get_pseudo_legal_moves(from);
+        let mut move_bb = self.get_pseudo_legal_moves_from(from);
 
         while move_bb.not_empty() {
             let to = move_bb.pop_square();
@@ -292,6 +314,7 @@ impl Board {
             knights: self.knights,
             pawns: self.pawns,
             flags: Flags(self.flags.0),
+            halfmove_clock: self.halfmove_clock,
         }
     }
 
@@ -376,13 +399,13 @@ impl Board {
             return true;
         }
 
-        let bishopsQueens = attack_pieces & (self.bishops | self.queens);
-        if (self.bishop_attacks(square) & bishopsQueens).not_empty() {
+        let bishops_queens = attack_pieces & (self.bishops | self.queens);
+        if (self.bishop_attacks(square) & bishops_queens).not_empty() {
             return true;
         }
 
-        let rooksQueens = attack_pieces & (self.rooks | self.queens);
-        if (self.rook_attacks(square) & rooksQueens).not_empty() {
+        let rooks_queens = attack_pieces & (self.rooks | self.queens);
+        if (self.rook_attacks(square) & rooks_queens).not_empty() {
             return true;
         }
 
@@ -422,6 +445,9 @@ impl Board {
             Piece::Pawn => {
                 let from_file: File = from.into();
                 let to_file: File = to.into();
+
+                // Reset halfmove clock
+                board_new.halfmove_clock = 0;
 
                 // Is capture?
                 if from_file != to_file {
@@ -463,6 +489,9 @@ impl Board {
                     let (_, captured_piece) = board_new.get_piece_at(to).unwrap();
                     board_new.clear_piece(to);
                     events.push(Event::PieceLeftSquare(opponent_side, captured_piece, to));
+
+                    // Reset halfmove clock
+                    board_new.halfmove_clock = 0;
                 } else {
                     let (
                         king_square,
@@ -549,6 +578,9 @@ impl Board {
                     let (_, captured_piece) = board_new.get_piece_at(to).unwrap();
                     board_new.clear_piece(to);
                     events.push(Event::PieceLeftSquare(opponent_side, captured_piece, to));
+
+                    // Reset halfmove clock
+                    board_new.halfmove_clock = 0;
                 }
             }
             Piece::Rook => {
@@ -558,6 +590,9 @@ impl Board {
                     let (_, captured_piece) = board_new.get_piece_at(to).unwrap();
                     board_new.clear_piece(to);
                     events.push(Event::PieceLeftSquare(opponent_side, captured_piece, to));
+
+                    // Reset halfmove clock
+                    board_new.halfmove_clock = 0;
                 }
 
                 // Revoke castling rights
@@ -590,7 +625,7 @@ impl Board {
     }
 
     // TODO test
-    fn get_pseudo_legal_moves(&self, from: Square) -> BitBoard {
+    fn get_pseudo_legal_moves_from(&self, from: Square) -> BitBoard {
         match self.get_piece_at(from) {
             None => BitBoard::EMPTY,
             Some((side, piece)) => {
