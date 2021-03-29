@@ -47,6 +47,12 @@ pub use square::Square;
 )]
 pub struct Flags(u16);
 
+impl core::convert::Into<u16> for Flags {
+    fn into(self) -> u16 {
+        self.0
+    }
+}
+
 impl Flags {
     const WHITES_TURN_INDEX: usize = 12;
 
@@ -285,6 +291,51 @@ impl Board {
         pieces
     }
 
+    pub fn get_king_square(&self, side: Side) -> Square {
+        let pieces = match side {
+            Side::White => self.white,
+            Side::Black => self.black,
+        };
+
+        (pieces & self.kings).pop_square()
+    }
+
+    // TODO test
+    pub fn is_attacked(&self, square: Square, by_side: Side) -> bool {
+        let bitboard = BitBoard::square(square);
+        let attack_pieces = match by_side {
+            Side::White => self.white,
+            Side::Black => self.black,
+        };
+
+        let pawns = attack_pieces & self.pawns;
+        if (bitboard.black_pawn_any_attacks_mask() & pawns).not_empty() {
+            return true;
+        }
+
+        let knights = attack_pieces & self.knights;
+        if (BitBoard::knight_attacks_mask(square) & knights).not_empty() {
+            return true;
+        }
+
+        let kings = attack_pieces & self.kings;
+        if (BitBoard::king_attacks_mask(square) & kings).not_empty() {
+            return true;
+        }
+
+        let bishops_queens = attack_pieces & (self.bishops | self.queens);
+        if (self.bishop_attacks(square) & bishops_queens).not_empty() {
+            return true;
+        }
+
+        let rooks_queens = attack_pieces & (self.rooks | self.queens);
+        if (self.rook_attacks(square) & rooks_queens).not_empty() {
+            return true;
+        }
+
+        false
+    }
+
     pub fn get_side_turn(&self) -> Side {
         match self.get_flags().get_whites_turn() {
             true => Side::White,
@@ -365,51 +416,6 @@ impl Board {
 
     fn queen_attacks(&self, square: Square) -> BitBoard {
         self.rook_attacks(square) | self.bishop_attacks(square)
-    }
-
-    fn get_king_square(&self, side: Side) -> Square {
-        let pieces = match side {
-            Side::White => self.white,
-            Side::Black => self.black,
-        };
-
-        (pieces & self.kings).pop_square()
-    }
-
-    // TODO test
-    fn is_attacked(&self, square: Square, by_side: Side) -> bool {
-        let bitboard = BitBoard::square(square);
-        let attack_pieces = match by_side {
-            Side::White => self.white,
-            Side::Black => self.black,
-        };
-
-        let pawns = attack_pieces & self.pawns;
-        if (bitboard.black_pawn_any_attacks_mask() & pawns).not_empty() {
-            return true;
-        }
-
-        let knights = attack_pieces & self.knights;
-        if (BitBoard::knight_attacks_mask(square) & knights).not_empty() {
-            return true;
-        }
-
-        let kings = attack_pieces & self.kings;
-        if (BitBoard::king_attacks_mask(square) & kings).not_empty() {
-            return true;
-        }
-
-        let bishops_queens = attack_pieces & (self.bishops | self.queens);
-        if (self.bishop_attacks(square) & bishops_queens).not_empty() {
-            return true;
-        }
-
-        let rooks_queens = attack_pieces & (self.rooks | self.queens);
-        if (self.rook_attacks(square) & rooks_queens).not_empty() {
-            return true;
-        }
-
-        false
     }
 
     // TODO test
@@ -852,7 +858,7 @@ mod tests {
                 .into_iter()
                 .collect();
 
-        let board = Board::new(pieces, Flags::default());
+        let board = Board::new(pieces, Flags::default(), 0);
         let square = Square::new(File::H, Rank::_8);
 
         assert_eq!(

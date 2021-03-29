@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Lubos Kozmon <contact@elkozmon.com>"]
 edition = "2018"
 
+[profile.release]
+overflow-checks = false
+
 [dependencies]
 ink_primitives = { version = "3.0.0-rc3", default-features = false }
 ink_metadata = { version = "3.0.0-rc3", default-features = false, features = ["derive"], optional = true }

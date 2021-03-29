@@ -13,12 +13,27 @@ mod dot_chess {
     use ink_storage::Vec;
     use scale::{Decode, Encode};
 
+    const BALANCE_DISTRIBUTION_RATIO: Balance = 98;
+    const FEE_BENEFICIARY: [u8; 32] = [
+        212, 53, 147, 199, 21, 253, 211, 28, 97, 20, 26, 189, 4, 169, 159, 214, 130, 44, 133, 88,
+        133, 76, 205, 227, 154, 86, 132, 231, 165, 109, 162, 125,
+    ];
+
+    pub type Result<T> = core::result::Result<T, Error>;
+
     #[derive(Encode, Decode, Debug, Copy, Clone)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum Error {
         InvalidArgument,
         InvalidCaller,
         IllegalMove,
+        Other,
+    }
+
+    impl core::convert::From<ink_env::Error> for Error {
+        fn from(error: ink_env::Error) -> Self {
+            Self::Other
+        }
     }
 
     #[derive(Encode, Decode, Debug, Copy, Clone)]
@@ -107,7 +122,7 @@ mod dot_chess {
         ///   1 << 11 Black King Castling Right
         ///   1 << 12 Whites Turn
         #[ink(message)]
-        pub fn get_board(&self) -> ([i8; 64], BoardFlags) {
+        pub fn get_board(&self) -> ([i8; 64], u16) {
             let mut board = [0i8; 64];
 
             for (side, piece, square) in self.board.get_pieces().iter() {
@@ -128,130 +143,143 @@ mod dot_chess {
                 board[square.index() as usize] = n;
             }
 
-            let flags = self.board.get_flags();
+            let flags: u16 = (*self.board.get_flags()).into();
 
-            (board, *flags)
+            (board, flags)
         }
 
         /// Makes a move
         ///
         /// Returns true if move was successful
         #[ink(message)]
-        pub fn make_move(&mut self, from: Square, to: Square, flags: PlyFlags) -> bool {
+        pub fn make_move(&mut self, from: Square, to: Square, flags: PlyFlags) -> Result<()> {
             if !self.is_callers_turn() {
-                todo!("Emit event: Invalid caller");
-                return false;
+                return Err(Error::InvalidCaller);
             }
 
             let side = self.board.get_side_turn();
             let ply = Ply::new(from, to, flags);
 
-            match self.board.try_make_move(ply) {
-                Ok((board_new, events)) => {
-                    // Update board
-                    self.board = ink_storage::Pack::new(board_new);
+            let (board_new, events) = self.board.try_make_move(ply)?;
 
-                    let opponent_side = side.flip();
-                    let opponent_has_legal_moves = self.board.side_has_legal_move(opponent_side);
-                    if !opponent_has_legal_moves {
-                        let opponent_king_square = self.board.get_king_square(opponent_side);
+            // Update board
+            self.board = ink_storage::Pack::new(board_new);
 
-                        if self.board.is_attacked(opponent_king_square, side) {
-                            // Checkmate
-                            // TODO Announce result
-                        } else {
-                            // Stalemate
-                            // TODO Announce result
-                        }
-                    }
+            let opponent_side = side.flip();
+            let opponent_has_legal_moves = self.board.side_has_legal_move(opponent_side);
+            if !opponent_has_legal_moves {
+                let opponent_king_square = self.board.get_king_square(opponent_side);
 
-                    // Is insufficient mating material?
-                    let mut white_score = 0;
-                    let mut black_score = 0;
-                    let mut insufficient_mating_material = true;
-
-                    for (side, piece, square) in self.board.get_pieces().iter() {
-                        let ref_score = match side {
-                            Side::White => &mut white_score,
-                            Side::Black => &mut black_score,
-                        };
-
-                        match piece {
-                            Piece::Knight | Piece::Bishop => *ref_score += 1,
-                            Piece::Pawn | Piece::Rook | Piece::Queen => *ref_score = i32::MAX,
-                            Piece::King => {}
-                        }
-
-                        drop(ref_score);
-
-                        if white_score > 1 && black_score > 1 {
-                            insufficient_mating_material = false;
-                            break;
-                        }
-                    }
-
-                    if insufficient_mating_material {
-                        // TODO Announce result
-                    }
-
-                    // Clear board history to save space
-                    if self.board.halfmove_clock() == 0 {
-                        self.board_history.clear()
-                    }
-
-                    // Is repetition?
-                    let new_hash = self.board_history.last().unwrap().apply(events);
-
-                    let is_repetition = self
-                        .board_history
-                        .iter()
-                        .filter(|hash| hash == new_hash)
-                        .take(2)
-                        .count()
-                        == 2;
-
-                    if is_repetition {
-                        // TODO Announce result
-                    }
-
-                    // Update history
-                    self.board_history.push(new_hash);
-
-                    // TODO Emit events
-
-                    true
-                }
-                Err(error) => {
-                    todo!("Emit event");
-
-                    false
+                if self.board.is_attacked(opponent_king_square, side) {
+                    // Checkmate
+                    return self.terminate_game(Some(side), GameOverReason::Checkmate);
+                } else {
+                    // Stalemate
+                    return self.terminate_game(None, GameOverReason::Stalemate);
                 }
             }
+
+            // Is insufficient mating material?
+            let mut white_score = 0;
+            let mut black_score = 0;
+            let mut insufficient_mating_material = true;
+
+            for (side, piece, square) in self.board.get_pieces().iter() {
+                let ref_score = match side {
+                    Side::White => &mut white_score,
+                    Side::Black => &mut black_score,
+                };
+
+                match piece {
+                    Piece::Knight | Piece::Bishop => *ref_score += 1,
+                    Piece::Pawn | Piece::Rook | Piece::Queen => *ref_score = i32::MAX,
+                    Piece::King => {}
+                }
+
+                drop(ref_score);
+
+                if white_score > 1 && black_score > 1 {
+                    insufficient_mating_material = false;
+                    break;
+                }
+            }
+
+            if insufficient_mating_material {
+                return self.terminate_game(None, GameOverReason::InsufficientMatingMaterial);
+            }
+
+            // Clear board history to save space
+            if self.board.halfmove_clock() == 0 {
+                self.board_history.clear()
+            }
+
+            // Is repetition?
+            let new_hash = self.board_history.last().unwrap().apply(events);
+
+            let is_repetition = self
+                .board_history
+                .iter()
+                .filter(|hash| **hash == new_hash)
+                .take(2)
+                .count()
+                == 2;
+
+            if is_repetition {
+                return self.terminate_game(None, GameOverReason::Repetition);
+            }
+
+            // Update history
+            self.board_history.push(new_hash);
+
+            // Emit event
+            self.env().emit_event(PlayerMoved { side, from, to });
+
+            Ok(())
         }
 
-        pub fn claim_draw(&mut self, reason: GameOverReason) -> bool {
+        #[ink(message)]
+        pub fn claim_draw(&mut self, reason: GameOverReason) -> Result<()> {
             if !self.is_callers_turn() {
-                todo!("Emit event: Invalid caller");
-                return false;
+                return Err(Error::InvalidCaller);
             }
 
             match reason {
                 GameOverReason::FiftyMoveRule if self.board.halfmove_clock() >= 100 => {
-                    // TODO Announce draw
+                    self.terminate_game(None, GameOverReason::FiftyMoveRule)
                 }
-                _ => {
-                    panic!("Invalid claim")
-                }
+                _ => Err(Error::InvalidArgument),
             }
         }
 
-        pub fn resign(&mut self) -> bool {
+        #[ink(message)]
+        pub fn resign(&mut self) -> Result<()> {
             if !self.is_callers_turn() {
-                todo!("Emit event: Invalid caller");
-                return false;
+                return Err(Error::InvalidCaller);
             }
 
-            // TODO Announce result
+            let resignee_side = self.board.get_side_turn();
+
+            self.terminate_game(Some(resignee_side.flip()), GameOverReason::Resignation)
+        }
+
+        fn terminate_game(&mut self, winner: Option<Side>, reason: GameOverReason) -> Result<()> {
+            self.env().emit_event(GameOver { winner, reason });
+
+            let balance = self.env().balance();
+            let fee = balance / BALANCE_DISTRIBUTION_RATIO;
+            let pot = balance - fee;
+
+            match winner {
+                Some(Side::White) => self.env().transfer(self.white, pot)?,
+                Some(Side::Black) => self.env().transfer(self.black, pot)?,
+                None => {
+                    let split = pot / 2;
+                    self.env().transfer(self.white, split)?;
+                    self.env().transfer(self.black, split)?;
+                }
+            }
+
+            self.env().terminate_contract(FEE_BENEFICIARY.into())
         }
 
         fn is_callers_turn(&self) -> bool {
