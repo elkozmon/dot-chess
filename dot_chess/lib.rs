@@ -8,7 +8,7 @@ use ink_lang as ink;
 #[ink::contract]
 mod dot_chess {
 
-    use crate::board::{Board, Piece, Ply, Promotion, Side, Square};
+    use crate::board::{Board, Piece, Ply, Side, Square};
     use crate::zobrist::ZobristHash;
     use ink_storage::Vec;
     use scale::{Decode, Encode};
@@ -126,15 +126,7 @@ mod dot_chess {
             let mut board = [0i8; 64];
 
             for (side, piece, square) in self.board.get_pieces().iter() {
-                let n = match piece {
-                    Piece::Pawn => 1,
-                    Piece::Knight => 2,
-                    Piece::Bishop => 3,
-                    Piece::Rook => 4,
-                    Piece::Queen => 5,
-                    Piece::King => 6,
-                };
-
+                let n = <Piece as Into<u8>>::into(*piece) as i8;
                 let n = match side {
                     Side::White => n,
                     Side::Black => -n,
@@ -152,7 +144,12 @@ mod dot_chess {
         ///
         /// Returns true if move was successful
         #[ink(message)]
-        pub fn make_move(&mut self, from: Square, to: Square, promotion: Promotion) -> Result<()> {
+        pub fn make_move(
+            &mut self,
+            from: Square,
+            to: Square,
+            promotion: Option<Piece>,
+        ) -> Result<()> {
             if !self.is_callers_turn() {
                 return Err(Error::InvalidCaller);
             }

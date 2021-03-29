@@ -20,7 +20,7 @@ pub use direction::Direction;
 pub use event::Event;
 pub use file::File;
 pub use piece::Piece;
-pub use ply::{Ply, Promotion};
+pub use ply::Ply;
 pub use rank::Rank;
 pub use side::Side;
 pub use square::Square;
@@ -259,7 +259,7 @@ impl Board {
 
         while move_bb.not_empty() {
             let to = move_bb.pop_square();
-            let ply = Ply::new(from, to, Promotion::QUEEN_PROMOTION); // Use queen promotion in case its a promo-move, otherwise it doesn't matter
+            let ply = Ply::new(from, to, Some(Piece::Queen)); // Use queen promotion in case its a promo-move, otherwise it doesn't matter
 
             if let Ok((board, _)) = self.try_make_pseudo_legal_move(ply) {
                 // Assert king not attacked
