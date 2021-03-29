@@ -1,6 +1,6 @@
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
-
+use crate::dot_chess::Result;
 use crate::dot_chess::Error;
 
 #[derive(
@@ -32,7 +32,7 @@ impl core::convert::Into<u8> for Piece {
 impl core::convert::TryFrom<u8> for Piece {
     type Error = Error;
 
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
+    fn try_from(value: u8) -> Result<Self> {
         match value {
             1 => Ok(Piece::Pawn),
             2 => Ok(Piece::Knight),

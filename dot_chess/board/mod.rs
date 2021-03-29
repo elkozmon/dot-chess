@@ -10,6 +10,7 @@ mod square;
 
 use self::bitboard::BitBoard;
 use crate::dot_chess::Error;
+use super::dot_chess::Result;
 use bitintr::Tzcnt;
 use core::convert::TryFrom;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
@@ -219,7 +220,7 @@ impl Board {
     }
 
     // TODO test
-    pub fn try_make_move(&self, ply: Ply) -> Result<(Self, Vec<Event>), Error> {
+    pub fn try_make_move(&self, ply: Ply) -> Result<(Self, Vec<Event>)> {
         // Assert move is pseudo legal
         if (self.get_pseudo_legal_moves_from(ply.from()) & BitBoard::square(ply.to())).is_empty() {
             return Err(Error::IllegalMove);
@@ -419,7 +420,7 @@ impl Board {
     }
 
     // TODO test
-    fn try_make_pseudo_legal_move(&self, ply: Ply) -> Result<(Self, Vec<Event>), Error> {
+    fn try_make_pseudo_legal_move(&self, ply: Ply) -> Result<(Self, Vec<Event>)> {
         // Assert sides turn
         let (side, piece) = self
             .get_piece_at(ply.from())

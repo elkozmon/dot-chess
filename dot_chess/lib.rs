@@ -8,6 +8,8 @@ use ink_lang as ink;
 #[ink::contract]
 mod dot_chess {
 
+    use std::convert::TryInto;
+
     use crate::board::{Board, Piece, Ply, Side, Square};
     use crate::zobrist::ZobristHash;
     use ink_storage::Vec;
@@ -47,18 +49,56 @@ mod dot_chess {
         FiftyMoveRule,
     }
 
+    impl GameOverReason {
+        const CHECKMATE_VAL: u8 = 0;
+        const STALEMATE_VAL: u8 = 1;
+        const IMM_VAL: u8 = 2;
+        const RESIGNATION_VAL: u8 = 3;
+        const REPETITION_VAL: u8 = 4;
+        const FIFTYMOVE_VAL: u8 = 5;
+    }
+
+    impl core::convert::Into<u8> for GameOverReason {
+        fn into(self) -> u8 {
+            match self {
+                GameOverReason::Checkmate => Self::CHECKMATE_VAL,
+                GameOverReason::Stalemate => Self::STALEMATE_VAL,
+                GameOverReason::InsufficientMatingMaterial => Self::IMM_VAL,
+                GameOverReason::Resignation => Self::RESIGNATION_VAL,
+                GameOverReason::Repetition => Self::REPETITION_VAL,
+                GameOverReason::FiftyMoveRule => Self::FIFTYMOVE_VAL,
+            }
+        }
+    }
+
+    impl core::convert::TryFrom<u8> for GameOverReason {
+        type Error = Error;
+
+        fn try_from(value: u8) -> Result<Self> {
+            match value {
+                Self::CHECKMATE_VAL => Ok(Self::Checkmate),
+                Self::STALEMATE_VAL => Ok(Self::Stalemate),
+                Self::IMM_VAL => Ok(Self::InsufficientMatingMaterial),
+                Self::RESIGNATION_VAL => Ok(Self::Resignation),
+                Self::REPETITION_VAL => Ok(Self::Repetition),
+                Self::FIFTYMOVE_VAL => Ok(Self::FiftyMoveRule),
+                _ => Err(Error::InvalidArgument),
+            }
+        }
+    }
+
     #[ink(event)]
     pub struct PlayerMoved {
         #[ink(topic)]
-        side: Side,
-        from: Square,
-        to: Square,
+        side: u8,
+        from: u8,
+        to: u8,
     }
 
     #[ink(event)]
     pub struct GameOver {
-        winner: Option<Side>,
-        reason: GameOverReason,
+        winner: Option<u8>,
+        reason: u8,
     }
 
     #[ink(storage)]
@@ -91,7 +131,7 @@ mod dot_chess {
             }
         }
 
-        /// Returns array of 64 8-bit integers describing positions on the board, and a unsigned 16-bit integer with game state flags
+        /// Returns array of 64 8-bit integers describing positions on the board.
         ///
         /// Positions are described in order of squares from A1, A2, ..., B1, B2, ... H8 and encoded using these codes:
         ///
@@ -105,54 +145,44 @@ mod dot_chess {
         ///
         /// Positive integers represent white pieces
         /// Negative integers represent black pieces
-        ///
-        /// The unsined 16-bit integer is a game state bit mask:
-        ///
-        ///   1 << 0  En passant open at file A
-        ///   1 << 1  En passant open at file B
-        ///   1 << 2  En passant open at file C
-        ///   1 << 3  En passant open at file D
-        ///   1 << 4  En passant open at file E
-        ///   1 << 5  En passant open at file F
-        ///   1 << 6  En passant open at file G
-        ///   1 << 7  En passant open at file H
-        ///   1 << 8  White Queen Castling Right
-        ///   1 << 9  White King Castling Right
-        ///   1 << 10 Black Queen Castling Right
-        ///   1 << 11 Black King Castling Right
-        ///   1 << 12 Whites Turn
         #[ink(message)]
-        pub fn get_board(&self) -> ([i8; 64], u16) {
+        pub fn get_board(&self) -> [i8; 64] {
             let mut board = [0i8; 64];
 
             for (side, piece, square) in self.board.get_pieces().iter() {
-                let n = <Piece as Into<u8>>::into(*piece) as i8;
-                let n = match side {
-                    Side::White => n,
-                    Side::Black => -n,
-                };
+                let mut n = <Piece as Into<u8>>::into(*piece) as i8;
+
+                if let Side::Black = side {
+                    n *= -1;
+                }
 
                 board[square.index() as usize] = n;
             }
 
-            let flags: u16 = (*self.board.get_flags()).into();
+            board
+        }
 
-            (board, flags)
+        /// Returns which sides turn it is
+        #[ink(message)]
+        pub fn get_side_turn(&self) -> u8 {
+            self.board.get_side_turn().into()
         }
 
         /// Makes a move
         ///
         /// Returns true if move was successful
         #[ink(message)]
-        pub fn make_move(
-            &mut self,
-            from: Square,
-            to: Square,
-            promotion: Option<Piece>,
-        ) -> Result<()> {
+        pub fn make_move(&mut self, from: u8, to: u8, promotion: Option<u8>) -> Result<()> {
             if !self.is_callers_turn() {
                 return Err(Error::InvalidCaller);
             }
+
+            let from: Square = from.into();
+            let to: Square = to.into();
+            let promotion: Option<Piece> = match promotion {
+                Some(val) => Some(val.try_into()?),
+                None => None,
+            };
 
             let side = self.board.get_side_turn();
             let ply = Ply::new(from, to, promotion);
@@ -229,16 +259,22 @@ mod dot_chess {
             self.board_history.push(new_hash);
 
             // Emit event
-            self.env().emit_event(PlayerMoved { side, from, to });
+            self.env().emit_event(PlayerMoved {
+                side: side.into(),
+                from: from.index(),
+                to: to.index(),
+            });
 
             Ok(())
         }
 
         #[ink(message)]
-        pub fn claim_draw(&mut self, reason: GameOverReason) -> Result<()> {
+        pub fn claim_draw(&mut self, reason: u8) -> Result<()> {
             if !self.is_callers_turn() {
                 return Err(Error::InvalidCaller);
             }
+
+            let reason: GameOverReason = reason.try_into()?;
 
             match reason {
                 GameOverReason::FiftyMoveRule if self.board.halfmove_clock() >= 100 => {
@@ -260,8 +296,6 @@ mod dot_chess {
         }
 
         fn terminate_game(&mut self, winner: Option<Side>, reason: GameOverReason) -> Result<()> {
-            self.env().emit_event(GameOver { winner, reason });
-
             let balance = self.env().balance();
             let fee = balance / BALANCE_DISTRIBUTION_RATIO;
             let pot = balance - fee;
@@ -276,6 +310,10 @@ mod dot_chess {
                 }
             }
 
+            let winner: Option<u8> = winner.map(|side| side.into());
+            let reason: u8 = reason.into();
+
+            self.env().emit_event(GameOver { winner, reason });
             self.env().terminate_contract(FEE_BENEFICIARY.into())
         }
 
