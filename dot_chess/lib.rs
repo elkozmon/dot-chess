@@ -8,10 +8,9 @@ use ink_lang as ink;
 #[ink::contract]
 mod dot_chess {
 
-    use std::convert::TryInto;
-
     use crate::board::{Board, Piece, Ply, Side, Square};
     use crate::zobrist::ZobristHash;
+    use core::convert::TryInto;
     use ink_storage::Vec;
     use scale::{Decode, Encode};
 
