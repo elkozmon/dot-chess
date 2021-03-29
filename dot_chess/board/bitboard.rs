@@ -421,7 +421,7 @@ impl BitBoard {
     pub fn pop_square(&mut self) -> Square {
         let square = self.bit_scan_forward();
 
-        self.0 ^= (1 << square.index());
+        self.0 ^= 1 << square.index();
 
         square
     }

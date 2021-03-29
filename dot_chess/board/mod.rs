@@ -20,7 +20,7 @@ pub use direction::Direction;
 pub use event::Event;
 pub use file::File;
 pub use piece::Piece;
-pub use ply::{Flags as PlyFlags, Ply};
+pub use ply::{Ply, Promotion};
 pub use rank::Rank;
 pub use side::Side;
 pub use square::Square;
@@ -259,9 +259,9 @@ impl Board {
 
         while move_bb.not_empty() {
             let to = move_bb.pop_square();
-            let ply = Ply::new(from, to, PlyFlags::DEFAULT);
+            let ply = Ply::new(from, to, Promotion::QUEEN_PROMOTION); // Use queen promotion in case its a promo-move, otherwise it doesn't matter
 
-            if let Ok((board, events)) = self.try_make_pseudo_legal_move(ply) {
+            if let Ok((board, _)) = self.try_make_pseudo_legal_move(ply) {
                 // Assert king not attacked
                 let side_moved = self.get_side_turn();
                 let king_square = board.get_king_square(side_moved);
@@ -638,11 +638,11 @@ impl Board {
                 let not_own_pieces = !self.get_pieces_by_side(side);
 
                 match (side, piece) {
-                    (side, Piece::Bishop) => self.bishop_attacks(from) & not_own_pieces,
-                    (side, Piece::Rook) => self.rook_attacks(from) & not_own_pieces,
-                    (side, Piece::Queen) => self.queen_attacks(from) & not_own_pieces,
-                    (side, Piece::Knight) => BitBoard::knight_attacks_mask(from) & not_own_pieces,
-                    (side, Piece::King) => {
+                    (_, Piece::Bishop) => self.bishop_attacks(from) & not_own_pieces,
+                    (_, Piece::Rook) => self.rook_attacks(from) & not_own_pieces,
+                    (_, Piece::Queen) => self.queen_attacks(from) & not_own_pieces,
+                    (_, Piece::Knight) => BitBoard::knight_attacks_mask(from) & not_own_pieces,
+                    (_, Piece::King) => {
                         let not_occuppied = !self.occupied();
                         let king = BitBoard::square(from);
 

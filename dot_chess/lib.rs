@@ -8,7 +8,7 @@ use ink_lang as ink;
 #[ink::contract]
 mod dot_chess {
 
-    use crate::board::{Board, Flags as BoardFlags, Piece, Ply, PlyFlags, Side, Square};
+    use crate::board::{Board, Piece, Ply, Promotion, Side, Square};
     use crate::zobrist::ZobristHash;
     use ink_storage::Vec;
     use scale::{Decode, Encode};
@@ -31,7 +31,7 @@ mod dot_chess {
     }
 
     impl core::convert::From<ink_env::Error> for Error {
-        fn from(error: ink_env::Error) -> Self {
+        fn from(_: ink_env::Error) -> Self {
             Self::Other
         }
     }
@@ -152,13 +152,13 @@ mod dot_chess {
         ///
         /// Returns true if move was successful
         #[ink(message)]
-        pub fn make_move(&mut self, from: Square, to: Square, flags: PlyFlags) -> Result<()> {
+        pub fn make_move(&mut self, from: Square, to: Square, promotion: Promotion) -> Result<()> {
             if !self.is_callers_turn() {
                 return Err(Error::InvalidCaller);
             }
 
             let side = self.board.get_side_turn();
-            let ply = Ply::new(from, to, flags);
+            let ply = Ply::new(from, to, promotion);
 
             let (board_new, events) = self.board.try_make_move(ply)?;
 
@@ -184,7 +184,7 @@ mod dot_chess {
             let mut black_score = 0;
             let mut insufficient_mating_material = true;
 
-            for (side, piece, square) in self.board.get_pieces().iter() {
+            for (side, piece, _) in self.board.get_pieces().iter() {
                 let ref_score = match side {
                     Side::White => &mut white_score,
                     Side::Black => &mut black_score,
