@@ -262,16 +262,16 @@ impl Board {
             let to = move_bb.pop_square();
             let ply = Ply::new(from, to, Some(Piece::Queen)); // Use queen promotion in case its a promo-move, otherwise it doesn't matter
 
-            if let Ok((board, _)) = self.try_make_pseudo_legal_move(ply) {
-                // Assert king not attacked
-                let side_moved = self.get_side_turn();
-                let king_square = board.get_king_square(side_moved);
-                if board.is_attacked(king_square, side_moved.flip()) {
-                    continue;
-                }
+            let ((board, _)) = self.try_make_pseudo_legal_move(ply).unwrap();
 
-                moves |= BitBoard::square(to);
+            // Assert king not attacked
+            let side_moved = self.get_side_turn();
+            let king_square = board.get_king_square(side_moved);
+            if board.is_attacked(king_square, side_moved.flip()) {
+                continue;
             }
+
+            moves |= BitBoard::square(to);
         }
 
         moves
