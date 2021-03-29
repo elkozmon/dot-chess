@@ -1,4 +1,4 @@
-use super::square::Square;
+use super::{square::Square, Piece};
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 
@@ -46,6 +46,16 @@ impl Ply {
 
     pub fn to(&self) -> Square {
         self.to
+    }
+
+    pub fn promotion(&self) -> Option<Piece> {
+        match self.promotion.0 {
+            1 => Some(Piece::Knight),
+            2 => Some(Piece::Bishop),
+            3 => Some(Piece::Rook),
+            4 => Some(Piece::Queen),
+            _ => None,
+        }
     }
 
     pub fn decode(encoded: PlyEncoded) -> Self {

@@ -449,14 +449,15 @@ impl Board {
         // Move & capture pieces
         match piece {
             Piece::Pawn => {
-                let from_file: File = from.into();
-                let to_file: File = to.into();
+                let file_from: File = from.into();
+                let file_to: File = to.into();
+                let rank_to: Rank = to.into();
 
                 // Reset halfmove clock
                 board_new.halfmove_clock = 0;
 
                 // Is capture?
-                if from_file != to_file {
+                if file_from != file_to {
                     let en_passant = (BitBoard::square(to) & opponent_pieces).is_empty();
                     let captured_square = if en_passant {
                         match side {
@@ -476,16 +477,46 @@ impl Board {
                         captured_piece,
                         captured_square,
                     ));
+
+                    board_new.clear_piece(from);
+                    board_new.set_piece(side, piece, to);
+
+                    events.push(Event::PieceLeftSquare(side, piece, from));
+                    events.push(Event::PieceEnteredSquare(side, piece, to));
                 } else {
                     // Is double push?
                     let rank_from: Rank = from.into();
-                    let rank_to: Rank = to.into();
 
                     if let (Rank::_2, Rank::_4) | (Rank::_7, Rank::_5) = (rank_from, rank_to) {
                         let file: File = to.into();
                         board_new.flags.set_en_passant_open(file, true);
                         events.push(Event::EnPassantOpened(file));
+
+                        board_new.clear_piece(from);
+                        board_new.set_piece(side, piece, to);
+
+                        events.push(Event::PieceLeftSquare(side, piece, from));
+                        events.push(Event::PieceEnteredSquare(side, piece, to));
+
+                        return Ok((board_new, events));
                     }
+                }
+
+                // Is promotion?
+                if let Rank::_8 | Rank::_1 = rank_to {
+                    let new_piece = ply.promotion().ok_or(Error::InvalidArgument)?;
+
+                    board_new.clear_piece(from);
+                    board_new.set_piece(side, new_piece, to);
+
+                    events.push(Event::PieceLeftSquare(side, piece, from));
+                    events.push(Event::PieceEnteredSquare(side, new_piece, to));
+                } else {
+                    board_new.clear_piece(from);
+                    board_new.set_piece(side, piece, to);
+
+                    events.push(Event::PieceLeftSquare(side, piece, from));
+                    events.push(Event::PieceEnteredSquare(side, piece, to));
                 }
             }
             Piece::King => {
@@ -576,6 +607,12 @@ impl Board {
                     board_new.flags.set_queen_side_castling_right(side, false);
                     events.push(Event::QueenSideCastlingRightLost(side));
                 }
+
+                board_new.clear_piece(from);
+                board_new.set_piece(side, piece, to);
+
+                events.push(Event::PieceLeftSquare(side, piece, from));
+                events.push(Event::PieceEnteredSquare(side, piece, to));
             }
             Piece::Knight | Piece::Bishop | Piece::Queen => {
                 // Handle captures
@@ -588,6 +625,12 @@ impl Board {
                     // Reset halfmove clock
                     board_new.halfmove_clock = 0;
                 }
+
+                board_new.clear_piece(from);
+                board_new.set_piece(side, piece, to);
+
+                events.push(Event::PieceLeftSquare(side, piece, from));
+                events.push(Event::PieceEnteredSquare(side, piece, to));
             }
             Piece::Rook => {
                 // Handle captures
@@ -616,14 +659,14 @@ impl Board {
                     board_new.flags.set_queen_side_castling_right(side, false);
                     events.push(Event::QueenSideCastlingRightLost(side));
                 }
+
+                board_new.clear_piece(from);
+                board_new.set_piece(side, piece, to);
+
+                events.push(Event::PieceLeftSquare(side, piece, from));
+                events.push(Event::PieceEnteredSquare(side, piece, to));
             }
         }
-
-        board_new.clear_piece(from);
-        board_new.set_piece(side, piece, to);
-
-        events.push(Event::PieceLeftSquare(side, piece, from));
-        events.push(Event::PieceEnteredSquare(side, piece, to));
 
         events.push(Event::NextTurn(opponent_side));
 
