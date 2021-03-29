@@ -220,7 +220,7 @@ mod dot_chess {
 
                 match piece {
                     Piece::Knight | Piece::Bishop => *ref_score += 1,
-                    Piece::Pawn | Piece::Rook | Piece::Queen => *ref_score = i32::MAX,
+                    Piece::Pawn | Piece::Rook | Piece::Queen => *ref_score += 2,
                     Piece::King => {}
                 }
 
@@ -237,13 +237,13 @@ mod dot_chess {
             }
 
             // Clear board history to save space
+            let new_hash = self.board_history.last().unwrap().apply(events);
+
             if self.board.halfmove_clock() == 0 {
                 self.board_history.clear()
             }
 
             // Is repetition?
-            let new_hash = self.board_history.last().unwrap().apply(events);
-
             let is_repetition = self
                 .board_history
                 .iter()

@@ -443,6 +443,10 @@ impl Board {
         let to = ply.to();
 
         board_new.flags.reset_en_passant_open_files();
+        board_new.flags.set_whites_turn(match side {
+            Side::White => false,
+            Side::Black => true,
+        });
 
         let opponent_side = side.flip();
         let opponent_pieces = self.get_pieces_by_side(opponent_side);
@@ -711,10 +715,11 @@ impl Board {
                             | castling_queen_side
                     }
                     (Side::White, Piece::Pawn) => {
+                        let pawn: BitBoard = self.white & BitBoard::square(from);
+
                         let black_pawns: BitBoard = self.black & self.pawns;
-                        let white_pawns: BitBoard = self.white & self.pawns;
-                        let any_attacks: BitBoard = white_pawns.white_pawn_any_attacks_mask();
-                        let sgl_targets: BitBoard = white_pawns.north_one() & not_own_pieces;
+                        let any_attacks: BitBoard = pawn.white_pawn_any_attacks_mask();
+                        let sgl_targets: BitBoard = pawn.north_one() & not_own_pieces;
                         let any_targets: BitBoard =
                             sgl_targets | sgl_targets.north_one() & BitBoard::RANK_4;
 
@@ -728,10 +733,11 @@ impl Board {
                         ((any_attacks & (pas_targets | black_pawns)) | any_targets) & not_own_pieces
                     }
                     (Side::Black, Piece::Pawn) => {
+                        let pawn: BitBoard = self.black & BitBoard::square(from);
+
                         let white_pawns: BitBoard = self.white & self.pawns;
-                        let black_pawns: BitBoard = self.black & self.pawns;
-                        let any_attacks: BitBoard = black_pawns.black_pawn_any_attacks_mask();
-                        let sgl_targets: BitBoard = black_pawns.south_one() & not_own_pieces;
+                        let any_attacks: BitBoard = pawn.black_pawn_any_attacks_mask();
+                        let sgl_targets: BitBoard = pawn.south_one() & not_own_pieces;
                         let any_targets: BitBoard =
                             sgl_targets | sgl_targets.south_one() & BitBoard::RANK_5;
 
@@ -951,5 +957,17 @@ mod tests {
         .collect();
 
         assert_eq!(Board::default().get_pieces(), pieces);
+    }
+
+    #[test]
+    fn try_make_pseudo_legal_move_pawn_c2_to_d2() {
+        let pieces: Vec<(Side, Piece, Square)> = vec![(Side::White, Piece::Pawn, 10u8.into())]
+            .into_iter()
+            .collect();
+
+        let board = Board::new(pieces, Flags::default(), 0);
+        let ply = Ply::new(10.into(), 18.into(), None);
+
+        let _ = board.try_make_pseudo_legal_move(ply).unwrap();
     }
 }
