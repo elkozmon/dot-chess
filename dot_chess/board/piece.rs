@@ -1,14 +1,15 @@
+use crate::dot_chess::Error;
+use crate::dot_chess::Result;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
-use crate::dot_chess::Result;
-use crate::dot_chess::Error;
 
 #[derive(
     Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout,
 )]
 #[cfg_attr(feature = "std", derive(Debug, scale_info::TypeInfo, StorageLayout))]
+#[repr(u8)]
 pub enum Piece {
-    Pawn,
+    Pawn = 0,
     Knight,
     Bishop,
     Rook,
@@ -18,14 +19,7 @@ pub enum Piece {
 
 impl core::convert::Into<u8> for Piece {
     fn into(self) -> u8 {
-        match self {
-            Piece::Pawn => 1,
-            Piece::Knight => 2,
-            Piece::Bishop => 3,
-            Piece::Rook => 4,
-            Piece::Queen => 5,
-            Piece::King => 6,
-        }
+        self as u8
     }
 }
 
@@ -34,12 +28,12 @@ impl core::convert::TryFrom<u8> for Piece {
 
     fn try_from(value: u8) -> Result<Self> {
         match value {
-            1 => Ok(Piece::Pawn),
-            2 => Ok(Piece::Knight),
-            3 => Ok(Piece::Bishop),
-            4 => Ok(Piece::Rook),
-            5 => Ok(Piece::Queen),
-            6 => Ok(Piece::King),
+            0 => Ok(Piece::Pawn),
+            1 => Ok(Piece::Knight),
+            2 => Ok(Piece::Bishop),
+            3 => Ok(Piece::Rook),
+            4 => Ok(Piece::Queen),
+            5 => Ok(Piece::King),
             _ => Err(Error::InvalidArgument),
         }
     }

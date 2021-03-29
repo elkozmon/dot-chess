@@ -1,5 +1,5 @@
-use crate::dot_chess::Result;
 use super::{square::Square, Piece};
+use crate::dot_chess::Result;
 use core::convert::TryFrom;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
@@ -61,8 +61,12 @@ impl Ply {
         };
 
         let promotion = ((promotion & 0b00001111) as u16) << 12;
-        let from = ((self.from.index() & 0b00111111) as u16) << 6;
-        let to = (self.to.index() & 0b00111111) as u16;
+
+        let from: u8 = self.from.into();
+        let from = ((from & 0b00111111) as u16) << 6;
+
+        let to: u8 = self.to.into();
+        let to = (to & 0b00111111) as u16;
 
         promotion | from | to
     }
@@ -80,17 +84,19 @@ mod tests {
 
         let encoded = Ply::new(from, to, promotion).encode();
 
-        assert_eq!(encoded, 0b01011101_11101001u16);
+        assert_eq!(encoded, 0b01001101_11101001u16);
     }
 
     #[test]
     fn ply_decode() {
-        let encoded = 0b01011101_11101001u16;
+        let encoded = 0b01001101_11101001u16;
 
         let ply = Ply::decode(encoded).unwrap();
+        let from: u8 = ply.from.into();
+        let to: u8 = ply.to.into();
 
         assert_eq!(ply.promotion, Some(Piece::Queen));
-        assert_eq!(ply.from.index(), 0b00110111u8);
-        assert_eq!(ply.to.index(), 0b00101001u8);
+        assert_eq!(from, 0b00110111u8);
+        assert_eq!(to, 0b00101001u8);
     }
 }

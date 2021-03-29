@@ -150,13 +150,15 @@ mod dot_chess {
             let mut board = [0i8; 64];
 
             for (side, piece, square) in self.board.get_pieces().iter() {
-                let mut n = <Piece as Into<u8>>::into(*piece) as i8;
+                let mut n = <Piece as Into<u8>>::into(*piece) as i8 + 1;
 
                 if let Side::Black = side {
                     n *= -1;
                 }
 
-                board[square.index() as usize] = n;
+                let square_index = <Square as Into<u8>>::into(*square) as usize;
+
+                board[square_index] = n;
             }
 
             board
@@ -261,8 +263,8 @@ mod dot_chess {
             // Emit event
             self.env().emit_event(PlayerMoved {
                 side: side.into(),
-                from: from.index(),
-                to: to.index(),
+                from: from.into(),
+                to: to.into(),
             });
 
             Ok(())

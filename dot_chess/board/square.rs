@@ -16,15 +16,25 @@ impl core::convert::From<u8> for Square {
     }
 }
 
+impl core::convert::Into<u8> for Square {
+    fn into(self) -> u8 {
+        self.0
+    }
+}
+
 impl core::convert::Into<File> for Square {
     fn into(self) -> File {
-        File::try_from(self.index() & 7).unwrap()
+        let index : u8 = self.into();
+
+        File::try_from(index & 7).unwrap()
     }
 }
 
 impl core::convert::Into<Rank> for Square {
     fn into(self) -> Rank {
-        Rank::try_from(self.index() >> 3).unwrap()
+        let index : u8 = self.into();
+
+        Rank::try_from(index >> 3).unwrap()
     }
 }
 
@@ -45,11 +55,10 @@ impl Square {
     pub const H8: Self = Self(63);
 
     pub fn new(file: File, rank: Rank) -> Self {
-        Self::from(8 * rank.index() + file.index())
-    }
+        let rank_index: u8 = rank.into();
+        let file_index: u8 = file.into();
 
-    pub fn index(&self) -> u8 {
-        self.0
+        Self::from(8 * rank_index + file_index)
     }
 }
 
@@ -59,9 +68,9 @@ mod tests {
 
     #[test]
     fn square_to_index() {
-        let square = Square::new(File::B, Rank::_2);
+        let index: u8 = Square::new(File::B, Rank::_2).into();
 
-        assert_eq!(square.index(), 9u8);
+        assert_eq!(index, 9u8);
     }
 
     #[test]
@@ -76,29 +85,29 @@ mod tests {
 
     #[test]
     fn square_h8_index() {
-        let square = Square::new(File::H, Rank::_8);
+        let index: u8 = Square::new(File::H, Rank::_8).into();
 
-        assert_eq!(square.index(), 63);
+        assert_eq!(index, 63);
     }
 
     #[test]
     fn square_a1_index() {
-        let square = Square::new(File::A, Rank::_1);
+        let index: u8 = Square::new(File::A, Rank::_1).into();
 
-        assert_eq!(square.index(), 0);
+        assert_eq!(index, 0);
     }
 
     #[test]
     fn square_a2_index() {
-        let square = Square::new(File::A, Rank::_2);
+        let index: u8 = Square::new(File::A, Rank::_2).into();
 
-        assert_eq!(square.index(), 8);
+        assert_eq!(index, 8);
     }
 
     #[test]
     fn square_b2_index() {
-        let square = Square::new(File::B, Rank::_2);
+        let index: u8 = Square::new(File::B, Rank::_2).into();
 
-        assert_eq!(square.index(), 9);
+        assert_eq!(index, 9);
     }
 }

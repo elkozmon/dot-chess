@@ -95,7 +95,9 @@ impl core::ops::Not for BitBoard {
 
 impl core::convert::From<Square> for BitBoard {
     fn from(square: Square) -> Self {
-        Self(1) << square.index() as i32
+        let square_index: i32 = <Square as Into<u8>>::into(square) as i32;
+
+        Self(1) << square_index
     }
 }
 
@@ -207,7 +209,7 @@ impl BitBoard {
     // General
 
     pub fn square(square: Square) -> Self {
-        Self(1) << square.index() as i32
+        <BitBoard as From<Square>>::from(square)
     }
 
     pub fn positive(square: Square) -> Self {
@@ -219,15 +221,19 @@ impl BitBoard {
     }
 
     pub fn rank_mask(square: Square) -> Self {
-        Self(0xffu64) << (square.index() as i32 & 56)
+        let square_index: i32 = <Square as Into<u8>>::into(square) as i32;
+
+        Self(0xffu64) << (square_index & 56)
     }
 
     pub fn file_mask(square: Square) -> Self {
-        Self(0x0101010101010101u64) << (square.index() as i32 & 7)
+        let square_index: i32 = <Square as Into<u8>>::into(square) as i32;
+
+        Self(0x0101010101010101u64) << (square_index & 7)
     }
 
     pub fn diagonal_mask(square: Square) -> Self {
-        let square_index = square.index() as i32;
+        let square_index: i32 = <Square as Into<u8>>::into(square) as i32;
 
         let diag = 8 * (square_index & 7) - (square_index & 56);
         let nort = -diag & (diag >> 31);
@@ -237,7 +243,7 @@ impl BitBoard {
     }
 
     pub fn anti_diagonal_mask(square: Square) -> Self {
-        let square_index = square.index() as i32;
+        let square_index: i32 = <Square as Into<u8>>::into(square) as i32;
 
         let diag = 56 - 8 * (square_index & 7) - (square_index & 56);
         let nort = -diag & (diag >> 31);
@@ -305,9 +311,11 @@ impl BitBoard {
     // Knights
 
     pub fn knight_attacks_mask(square: Square) -> Self {
+        let index: i8 = <Square as Into<u8>>::into(square) as i8;
+
         Self::KNIGHT_ATTACKS
             .iter()
-            .filter_map(|i| match square.index() as i8 + i {
+            .filter_map(|i| match index + i {
                 i if i >= BitBoard::LENGTH => None,
                 i if i < 0 => None,
                 i => {
@@ -415,13 +423,16 @@ impl BitBoard {
     }
 
     pub fn get(&self, square: Square) -> bool {
-        ((self.0 >> square.index()) & 1) == 1
+        let index: u8 = square.into();
+
+        ((self.0 >> index) & 1) == 1
     }
 
     pub fn pop_square(&mut self) -> Square {
         let square = self.bit_scan_forward();
+        let index: u8 = square.into();
 
-        self.0 ^= 1 << square.index();
+        self.0 ^= 1 << index;
 
         square
     }

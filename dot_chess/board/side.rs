@@ -8,17 +8,15 @@ use crate::dot_chess::Result;
     Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout,
 )]
 #[cfg_attr(feature = "std", derive(Debug, scale_info::TypeInfo, StorageLayout))]
+#[repr(u8)]
 pub enum Side {
-    White,
+    White = 0,
     Black,
 }
 
 impl core::convert::Into<u8> for Side {
     fn into(self) -> u8 {
-        match self {
-            Side::White => Self::WHITE_VAL,
-            Side::Black => Self::BLACK_VAL,
-        }
+        self as u8
     }
 }
 
@@ -27,8 +25,8 @@ impl core::convert::TryFrom<u8> for Side {
 
     fn try_from(value: u8) -> Result<Self> {
         match value {
-            Self::WHITE_VAL => Ok(Self::White),
-            Self::BLACK_VAL => Ok(Self::Black),
+            0 => Ok(Self::White),
+            1 => Ok(Self::Black),
             _ => Err(Error::InvalidArgument),
         }
     }
@@ -36,9 +34,6 @@ impl core::convert::TryFrom<u8> for Side {
 
 impl Side {
     pub const VARIANTS: [Side; 2] = [Side::White, Side::Black];
-
-    const WHITE_VAL: u8 = 0;
-    const BLACK_VAL: u8 = 1;
 
     pub fn flip(&self) -> Self {
         match self {

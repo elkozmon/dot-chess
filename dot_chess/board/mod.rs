@@ -9,8 +9,8 @@ mod side;
 mod square;
 
 use self::bitboard::BitBoard;
-use crate::dot_chess::Error;
 use super::dot_chess::Result;
+use crate::dot_chess::Error;
 use bitintr::Tzcnt;
 use core::convert::TryFrom;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
@@ -84,7 +84,7 @@ impl Flags {
     }
 
     fn get_en_passant_index(file: File) -> usize {
-        file.index() as usize
+        <File as Into<u8>>::into(file) as usize
     }
 
     pub fn get_queen_side_castling_right(&self, side: Side) -> bool {

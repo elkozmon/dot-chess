@@ -117,21 +117,14 @@ impl ZobristHash {
             Side::Black => 384,
         };
 
-        index += 64
-            * match piece {
-                Piece::Pawn => 0,
-                Piece::Knight => 1,
-                Piece::Bishop => 2,
-                Piece::Rook => 3,
-                Piece::Queen => 4,
-                Piece::King => 5,
-            };
+        index += 64 * <Piece as Into<u8>>::into(piece) as usize;
+        index += <Square as Into<u8>>::into(square) as usize;
 
-        index + square.index() as usize
+        index
     }
 
     fn get_en_passant_hash_key_index(file: File) -> usize {
-        768 + file.index() as usize
+        768 + <File as Into<u8>>::into(file) as usize
     }
 
     fn get_queen_castling_right_hash_key_index(side: Side) -> usize {
