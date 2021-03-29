@@ -1036,4 +1036,13 @@ mod tests {
 
         assert_eq!(bb, BitBoard(0x3c000000));
     }
+
+    #[test]
+    fn pop_square() {
+        let square: Square = 18.into();
+        let mut bb = BitBoard::square(square);
+
+        assert_eq!(bb.pop_square(), square);
+        assert!(bb.is_empty());
+    }
 }
