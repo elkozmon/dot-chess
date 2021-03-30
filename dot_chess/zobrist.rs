@@ -1,4 +1,4 @@
-use crate::board::{Board, Event, File, Piece, Side, Square};
+use crate::board::{File, Piece, Side, Square};
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use ink_storage::Vec;
 use scale::{Decode, Encode};
@@ -104,14 +104,28 @@ const ZOBRIST_KEYS: [u32; 781] = [
     3805793409, 1528232892, 610015325, 182281659, 1045836970,
 ];
 
-#[derive(PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
+#[derive(Copy, Clone, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(Debug, scale_info::TypeInfo, StorageLayout))]
 pub struct ZobristHash(u32);
 
-impl ZobristHash {
-    const WHITE_TURN_HASH_KEY_INDEX: usize = 780;
+impl core::ops::BitXor for ZobristHash {
+    type Output = ZobristHash;
 
-    fn get_piece_hash_key_index(side: Side, piece: Piece, square: Square) -> usize {
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Self(self.0 ^ rhs.0)
+    }
+}
+
+impl core::ops::BitXorAssign for ZobristHash {
+    fn bitxor_assign(&mut self, rhs: Self) {
+        self.0 ^= rhs.0;
+    }
+}
+
+impl ZobristHash {
+    const SIDE_TURN_HASH_KEY_INDEX: usize = 780;
+
+    fn piece_hash_key_index(side: Side, piece: Piece, square: Square) -> usize {
         let mut index: usize = match side {
             Side::White => 0,
             Side::Black => 384,
@@ -123,18 +137,18 @@ impl ZobristHash {
         index
     }
 
-    fn get_en_passant_hash_key_index(file: File) -> usize {
+    fn en_passant_hash_key_index(file: File) -> usize {
         768 + <File as Into<u8>>::into(file) as usize
     }
 
-    fn get_queen_castling_right_hash_key_index(side: Side) -> usize {
+    fn queen_castling_right_hash_key_index(side: Side) -> usize {
         match side {
             Side::White => 776,
             Side::Black => 777,
         }
     }
 
-    fn get_king_castling_right_hash_key_index(side: Side) -> usize {
+    fn king_castling_right_hash_key_index(side: Side) -> usize {
         match side {
             Side::White => 778,
             Side::Black => 779,
@@ -143,84 +157,28 @@ impl ZobristHash {
 }
 
 impl ZobristHash {
-    pub fn new(board: &Board) -> Self {
-        let mut hash = 0;
-
-        for (side, piece, square) in board.get_pieces().iter() {
-            let hash_key_index = Self::get_piece_hash_key_index(*side, *piece, *square);
-            let hash_key = ZOBRIST_KEYS[hash_key_index];
-            hash ^= hash_key;
-        }
-
-        let flags = board.get_flags();
-
-        for file in File::VARIANTS.iter() {
-            let file = *file;
-
-            if flags.get_en_passant_open(file) {
-                let hash_key_index = Self::get_en_passant_hash_key_index(file);
-                let hash_key = ZOBRIST_KEYS[hash_key_index];
-                hash ^= hash_key;
-            }
-        }
-
-        for side in Side::VARIANTS.iter() {
-            let side = *side;
-
-            if flags.get_queen_side_castling_right(side) {
-                let hash_key_index = Self::get_queen_castling_right_hash_key_index(side);
-                let hash_key = ZOBRIST_KEYS[hash_key_index];
-                hash ^= hash_key;
-            }
-
-            if flags.get_king_side_castling_right(side) {
-                let hash_key_index = Self::get_king_castling_right_hash_key_index(side);
-                let hash_key = ZOBRIST_KEYS[hash_key_index];
-                hash ^= hash_key;
-            }
-        }
-
-        if flags.get_whites_turn() {
-            hash ^= ZOBRIST_KEYS[Self::WHITE_TURN_HASH_KEY_INDEX];
-        }
-
-        ZobristHash(hash)
+    pub fn new() -> Self {
+        Self(0)
     }
 
-    pub fn apply(&self, events: Vec<Event>) -> Self {
-        let mut hash = self.0;
+    pub fn flip_queen_castling_right(&mut self, side: Side) {
+        self.0 ^= ZOBRIST_KEYS[Self::queen_castling_right_hash_key_index(side)];
+    }
 
-        for event in events.into_iter() {
-            match event {
-                Event::PieceLeftSquare(side, piece, square)
-                | Event::PieceEnteredSquare(side, piece, square) => {
-                    let hash_key_index = Self::get_piece_hash_key_index(*side, *piece, *square);
-                    let hash_key = ZOBRIST_KEYS[hash_key_index];
-                    hash ^= hash_key;
-                }
-                Event::NextTurn(Side::White) => {
-                    hash ^= ZOBRIST_KEYS[Self::WHITE_TURN_HASH_KEY_INDEX];
-                }
-                Event::QueenSideCastlingRightLost(side) => {
-                    let hash_key_index = Self::get_queen_castling_right_hash_key_index(*side);
-                    let hash_key = ZOBRIST_KEYS[hash_key_index];
-                    hash ^= hash_key;
-                }
-                Event::KingSideCastlingRightLost(side) => {
-                    let hash_key_index = Self::get_king_castling_right_hash_key_index(*side);
-                    let hash_key = ZOBRIST_KEYS[hash_key_index];
-                    hash ^= hash_key;
-                }
-                Event::EnPassantOpened(file) | Event::EnPassantClosed(file) => {
-                    let hash_key_index = Self::get_en_passant_hash_key_index(*file);
-                    let hash_key = ZOBRIST_KEYS[hash_key_index];
-                    hash ^= hash_key;
-                }
-                _ => {}
-            }
-        }
+    pub fn flip_king_castling_right(&mut self, side: Side) {
+        self.0 ^= ZOBRIST_KEYS[Self::king_castling_right_hash_key_index(side)];
+    }
 
-        ZobristHash(hash)
+    pub fn flip_next_turn(&mut self) {
+        self.0 ^= ZOBRIST_KEYS[Self::SIDE_TURN_HASH_KEY_INDEX];
+    }
+
+    pub fn flip_piece_position(&mut self, side: Side, piece: Piece, square: Square) {
+        self.0 ^= ZOBRIST_KEYS[Self::piece_hash_key_index(side, piece, square)];
+    }
+
+    pub fn flip_en_passant_file(&mut self, file: File) {
+        self.0 ^= ZOBRIST_KEYS[Self::en_passant_hash_key_index(file)];
     }
 }
 
@@ -231,7 +189,7 @@ mod tests {
 
     #[test]
     fn white_pawn_a1_hash_key_index() {
-        let index = ZobristHash::get_piece_hash_key_index(
+        let index = ZobristHash::piece_hash_key_index(
             Side::White,
             Piece::Pawn,
             Square::new(File::A, Rank::_1).into(),
@@ -242,7 +200,7 @@ mod tests {
 
     #[test]
     fn white_king_h8_hash_key_index() {
-        let index = ZobristHash::get_piece_hash_key_index(
+        let index = ZobristHash::piece_hash_key_index(
             Side::White,
             Piece::King,
             Square::new(File::H, Rank::_8).into(),
@@ -253,7 +211,7 @@ mod tests {
 
     #[test]
     fn black_pawn_a1_hash_key_index() {
-        let index = ZobristHash::get_piece_hash_key_index(
+        let index = ZobristHash::piece_hash_key_index(
             Side::Black,
             Piece::Pawn,
             Square::new(File::A, Rank::_1).into(),
@@ -264,7 +222,7 @@ mod tests {
 
     #[test]
     fn black_king_h8_hash_key_index() {
-        let index = ZobristHash::get_piece_hash_key_index(
+        let index = ZobristHash::piece_hash_key_index(
             Side::Black,
             Piece::King,
             Square::new(File::H, Rank::_8).into(),
@@ -275,48 +233,48 @@ mod tests {
 
     #[test]
     fn en_passant_file_a_hash_key_index() {
-        let index = ZobristHash::get_en_passant_hash_key_index(File::A);
+        let index = ZobristHash::en_passant_hash_key_index(File::A);
 
         assert_eq!(index, 768);
     }
 
     #[test]
     fn en_passant_file_h_hash_key_index() {
-        let index = ZobristHash::get_en_passant_hash_key_index(File::H);
+        let index = ZobristHash::en_passant_hash_key_index(File::H);
 
         assert_eq!(index, 775);
     }
 
     #[test]
     fn white_queen_castling_right_hash_key_index() {
-        let index = ZobristHash::get_queen_castling_right_hash_key_index(Side::White);
+        let index = ZobristHash::queen_castling_right_hash_key_index(Side::White);
 
         assert_eq!(index, 776);
     }
 
     #[test]
     fn black_queen_castling_right_hash_key_index() {
-        let index = ZobristHash::get_queen_castling_right_hash_key_index(Side::Black);
+        let index = ZobristHash::queen_castling_right_hash_key_index(Side::Black);
 
         assert_eq!(index, 777);
     }
 
     #[test]
     fn white_king_castling_right_hash_key_index() {
-        let index = ZobristHash::get_king_castling_right_hash_key_index(Side::White);
+        let index = ZobristHash::king_castling_right_hash_key_index(Side::White);
 
         assert_eq!(index, 778);
     }
 
     #[test]
     fn black_king_castling_right_hash_key_index() {
-        let index = ZobristHash::get_king_castling_right_hash_key_index(Side::Black);
+        let index = ZobristHash::king_castling_right_hash_key_index(Side::Black);
 
         assert_eq!(index, 779);
     }
 
     #[test]
     fn whites_turn_hash_key_index() {
-        assert_eq!(ZobristHash::WHITE_TURN_HASH_KEY_INDEX, 780);
+        assert_eq!(ZobristHash::SIDE_TURN_HASH_KEY_INDEX, 780);
     }
 }

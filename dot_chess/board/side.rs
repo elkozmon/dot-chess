@@ -33,8 +33,6 @@ impl core::convert::TryFrom<u8> for Side {
 }
 
 impl Side {
-    pub const VARIANTS: [Side; 2] = [Side::White, Side::Black];
-
     pub fn flip(&self) -> Self {
         match self {
             Side::White => Side::Black,

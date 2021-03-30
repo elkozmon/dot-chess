@@ -41,16 +41,3 @@ impl core::convert::TryFrom<u8> for File {
         }
     }
 }
-
-impl File {
-    pub const VARIANTS: [File; 8] = [
-        File::A,
-        File::B,
-        File::C,
-        File::D,
-        File::E,
-        File::F,
-        File::G,
-        File::H,
-    ];
-}

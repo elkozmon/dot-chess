@@ -1,6 +1,5 @@
 mod bitboard;
 mod direction;
-mod event;
 mod file;
 mod piece;
 mod ply;
@@ -8,17 +7,14 @@ mod rank;
 mod side;
 mod square;
 
-use self::bitboard::BitBoard;
-use super::dot_chess::Result;
-use crate::dot_chess::Error;
-use bitintr::Tzcnt;
+use crate::{dot_chess::Error, zobrist::ZobristHash};
 use core::convert::TryFrom;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use ink_storage::Vec;
 use scale::{Decode, Encode};
 
+pub use bitboard::BitBoard;
 pub use direction::Direction;
-pub use event::Event;
 pub use file::File;
 pub use piece::Piece;
 pub use ply::Ply;
@@ -26,123 +22,10 @@ pub use rank::Rank;
 pub use side::Side;
 pub use square::Square;
 
-/// Board flags bit mask
-///
-/// 1 << 0  En passant open at file A
-/// 1 << 1  En passant open at file B
-/// 1 << 2  En passant open at file C
-/// 1 << 3  En passant open at file D
-/// 1 << 4  En passant open at file E
-/// 1 << 5  En passant open at file F
-/// 1 << 6  En passant open at file G
-/// 1 << 7  En passant open at file H
-/// 1 << 8  White queen side castling right
-/// 1 << 9  White king side castling right
-/// 1 << 10 Black queen side castling right
-/// 1 << 11 Black king side castling right
-/// 1 << 12 Whites turn
 #[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(
     feature = "std",
     derive(Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
-)]
-pub struct Flags(u16);
-
-impl core::convert::Into<u16> for Flags {
-    fn into(self) -> u16 {
-        self.0
-    }
-}
-
-impl Flags {
-    const WHITES_TURN_INDEX: usize = 12;
-
-    pub fn default() -> Self {
-        Self(0b11111000_00000000u16)
-    }
-
-    fn get_bit(&self, bit: usize) -> bool {
-        ((self.0 >> bit) & 1u16) == 1
-    }
-
-    fn set_bit(&mut self, bit: usize, to: bool) -> () {
-        self.0 = (self.0 & !(1u16 << bit)) | ((to as u16) << bit);
-    }
-
-    fn get_queen_side_castling_right_index(side: Side) -> usize {
-        match side {
-            Side::White => 8,
-            Side::Black => 10,
-        }
-    }
-
-    fn get_king_side_castling_right_index(side: Side) -> usize {
-        match side {
-            Side::White => 9,
-            Side::Black => 11,
-        }
-    }
-
-    fn get_en_passant_index(file: File) -> usize {
-        <File as Into<u8>>::into(file) as usize
-    }
-
-    pub fn get_queen_side_castling_right(&self, side: Side) -> bool {
-        self.get_bit(Self::get_queen_side_castling_right_index(side))
-    }
-
-    pub fn set_queen_side_castling_right(&mut self, side: Side, castled: bool) -> () {
-        self.set_bit(Self::get_queen_side_castling_right_index(side), castled)
-    }
-
-    pub fn get_king_side_castling_right(&self, side: Side) -> bool {
-        self.get_bit(Self::get_king_side_castling_right_index(side))
-    }
-
-    pub fn set_king_side_castling_right(&mut self, side: Side, value: bool) -> () {
-        self.set_bit(Self::get_king_side_castling_right_index(side), value)
-    }
-
-    pub fn get_en_passant_open_files(&self) -> Vec<File> {
-        let mut files = Vec::new();
-        let mut mask = (self.0 & 0xffu16) as u8;
-        let mut next = 0u8;
-
-        while mask != 0 {
-            let zcnt = mask.tzcnt();
-            next += zcnt;
-            mask ^= 1 << zcnt;
-            files.push(File::try_from(next).unwrap());
-        }
-
-        files
-    }
-
-    pub fn reset_en_passant_open_files(&mut self) -> () {
-        self.0 &= 0xff00u16;
-    }
-
-    pub fn get_en_passant_open(&self, file: File) -> bool {
-        self.get_bit(Self::get_en_passant_index(file))
-    }
-
-    pub fn set_en_passant_open(&mut self, file: File, value: bool) -> () {
-        self.set_bit(Self::get_en_passant_index(file), value)
-    }
-
-    pub fn get_whites_turn(&self) -> bool {
-        self.get_bit(Self::WHITES_TURN_INDEX)
-    }
-
-    pub fn set_whites_turn(&mut self, value: bool) -> () {
-        self.set_bit(Self::WHITES_TURN_INDEX, value)
-    }
-}
-
-#[derive(Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(
-    feature = "std",
-    derive(Clone, Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
 )]
 pub struct Board {
     black: BitBoard,
@@ -153,12 +36,22 @@ pub struct Board {
     bishops: BitBoard,
     knights: BitBoard,
     pawns: BitBoard,
-    flags: Flags,
-    halfmove_clock: u32,
+}
+
+impl core::convert::Into<ZobristHash> for Board {
+    fn into(self) -> ZobristHash {
+        let mut zhash = ZobristHash::new();
+
+        for (side, piece, square) in self.pieces().iter() {
+            zhash.flip_piece_position(*side, *piece, *square);
+        }
+
+        zhash
+    }
 }
 
 impl Board {
-    pub fn new(pieces: Vec<(Side, Piece, Square)>, flags: Flags, halfmove_clock: u32) -> Self {
+    pub fn new(pieces: Vec<(Side, Piece, Square)>) -> Self {
         let mut black = BitBoard::EMPTY;
         let mut white = BitBoard::EMPTY;
         let mut kings = BitBoard::EMPTY;
@@ -195,8 +88,6 @@ impl Board {
             bishops,
             knights,
             pawns,
-            flags,
-            halfmove_clock,
         }
     }
 
@@ -210,81 +101,17 @@ impl Board {
             bishops: 0x2400000000000024.into(),
             knights: 0x4200000000000042.into(),
             pawns: 0xff00000000ff00.into(),
-            flags: Flags::default(),
-            halfmove_clock: 0,
         }
     }
 
-    pub fn halfmove_clock(&self) -> u32 {
-        self.halfmove_clock
-    }
-
-    // TODO test
-    pub fn try_make_move(&self, ply: Ply) -> Result<(Self, Vec<Event>)> {
-        // Assert move is pseudo legal
-        if (self.get_pseudo_legal_moves_from(ply.from()) & BitBoard::square(ply.to())).is_empty() {
-            return Err(Error::IllegalMove);
-        }
-
-        let (board, events) = self.try_make_pseudo_legal_move(ply)?;
-
-        // Assert king not attacked
-        let side_moved = self.get_side_turn();
-        let king_square = board.get_king_square(side_moved);
-        if board.is_attacked(king_square, side_moved.flip()) {
-            return Err(Error::IllegalMove);
-        }
-
-        Ok((board, events))
-    }
-
-    // TODO test
-    pub fn side_has_legal_move(&self, side: Side) -> bool {
-        let mut pieces = self.get_pieces_by_side(side);
-
-        while pieces.not_empty() {
-            let square = pieces.pop_square();
-
-            if self.get_legal_moves_from(square).not_empty() {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    // TODO test
-    pub fn get_legal_moves_from(&self, from: Square) -> BitBoard {
-        let mut moves = BitBoard::EMPTY;
-        let mut move_bb = self.get_pseudo_legal_moves_from(from);
-
-        while move_bb.not_empty() {
-            let to = move_bb.pop_square();
-            let ply = Ply::new(from, to, Some(Piece::Queen)); // Use queen promotion in case its a promo-move, otherwise it doesn't matter
-
-            let ((board, _)) = self.try_make_pseudo_legal_move(ply).unwrap();
-
-            // Assert king not attacked
-            let side_moved = self.get_side_turn();
-            let king_square = board.get_king_square(side_moved);
-            if board.is_attacked(king_square, side_moved.flip()) {
-                continue;
-            }
-
-            moves |= BitBoard::square(to);
-        }
-
-        moves
-    }
-
-    pub fn get_pieces(&self) -> Vec<(Side, Piece, Square)> {
+    pub fn pieces(&self) -> Vec<(Side, Piece, Square)> {
         let mut pieces = Vec::new();
         let mut occupied = self.occupied();
 
         while occupied.not_empty() {
             let square = occupied.pop_square();
 
-            if let Some((side, piece)) = self.get_piece_at(square) {
+            if let Some((side, piece)) = self.piece_at(square) {
                 pieces.push((side, piece, square));
             }
         }
@@ -292,7 +119,11 @@ impl Board {
         pieces
     }
 
-    pub fn get_king_square(&self, side: Side) -> Square {
+    pub fn is_king_attacked(&self, king_side: Side) -> bool {
+        self.is_attacked(self.king_square(king_side), king_side.flip())
+    }
+
+    fn king_square(&self, side: Side) -> Square {
         let pieces = match side {
             Side::White => self.white,
             Side::Black => self.black,
@@ -302,7 +133,7 @@ impl Board {
     }
 
     // TODO test
-    pub fn is_attacked(&self, square: Square, by_side: Side) -> bool {
+    fn is_attacked(&self, square: Square, by_side: Side) -> bool {
         let bitboard = BitBoard::square(square);
         let attack_pieces = match by_side {
             Side::White => self.white,
@@ -337,25 +168,11 @@ impl Board {
         false
     }
 
-    pub fn get_side_turn(&self) -> Side {
-        match self.get_flags().get_whites_turn() {
-            true => Side::White,
-            false => Side::Black,
-        }
-    }
-}
-
-impl Board {
-    // TODO make private (zobrist is dependent)
-    pub fn get_flags(&self) -> &Flags {
-        &self.flags
-    }
-
-    fn occupied(&self) -> BitBoard {
+    pub fn occupied(&self) -> BitBoard {
         self.black | self.white
     }
 
-    fn duplicate(&self) -> Self {
+    pub fn duplicate(&self) -> Self {
         Self {
             black: self.black,
             white: self.white,
@@ -365,13 +182,11 @@ impl Board {
             bishops: self.bishops,
             knights: self.knights,
             pawns: self.pawns,
-            flags: Flags(self.flags.0),
-            halfmove_clock: self.halfmove_clock,
         }
     }
 
-    fn get_ray_attacks(&self, square: Square, direction: Direction) -> BitBoard {
-        let mut attacks = BitBoard::ray_mask(square, direction);
+    pub fn ray_attacks(&self, from: Square, direction: Direction) -> BitBoard {
+        let mut attacks = BitBoard::ray_mask(from, direction);
         let blocker = attacks & self.occupied();
 
         if blocker.not_empty() {
@@ -387,303 +202,46 @@ impl Board {
         attacks
     }
 
-    fn diagonal_attacks(&self, square: Square) -> BitBoard {
-        self.get_ray_attacks(square, Direction::NorthEast)
-            | self.get_ray_attacks(square, Direction::SouthWest)
+    pub fn diagonal_attacks(&self, from: Square) -> BitBoard {
+        self.ray_attacks(from, Direction::NorthEast) | self.ray_attacks(from, Direction::SouthWest)
     }
 
-    fn anti_diagonal_attacks(&self, square: Square) -> BitBoard {
-        self.get_ray_attacks(square, Direction::NorthWest)
-            | self.get_ray_attacks(square, Direction::SouthEast)
+    pub fn anti_diagonal_attacks(&self, from: Square) -> BitBoard {
+        self.ray_attacks(from, Direction::NorthWest) | self.ray_attacks(from, Direction::SouthEast)
     }
 
-    fn file_attacks(&self, square: Square) -> BitBoard {
-        self.get_ray_attacks(square, Direction::North)
-            | self.get_ray_attacks(square, Direction::South)
+    pub fn file_attacks(&self, from: Square) -> BitBoard {
+        self.ray_attacks(from, Direction::North) | self.ray_attacks(from, Direction::South)
     }
 
-    fn rank_attacks(&self, square: Square) -> BitBoard {
-        self.get_ray_attacks(square, Direction::East)
-            | self.get_ray_attacks(square, Direction::West)
+    pub fn rank_attacks(&self, from: Square) -> BitBoard {
+        self.ray_attacks(from, Direction::East) | self.ray_attacks(from, Direction::West)
     }
 
-    fn rook_attacks(&self, square: Square) -> BitBoard {
-        self.file_attacks(square) | self.rank_attacks(square)
+    pub fn rook_attacks(&self, from: Square) -> BitBoard {
+        self.file_attacks(from) | self.rank_attacks(from)
     }
 
-    fn bishop_attacks(&self, square: Square) -> BitBoard {
-        self.diagonal_attacks(square) | self.anti_diagonal_attacks(square)
+    pub fn bishop_attacks(&self, from: Square) -> BitBoard {
+        self.diagonal_attacks(from) | self.anti_diagonal_attacks(from)
     }
 
-    fn queen_attacks(&self, square: Square) -> BitBoard {
-        self.rook_attacks(square) | self.bishop_attacks(square)
+    pub fn queen_attacks(&self, from: Square) -> BitBoard {
+        self.rook_attacks(from) | self.bishop_attacks(from)
     }
 
     // TODO test
-    fn try_make_pseudo_legal_move(&self, ply: Ply) -> Result<(Self, Vec<Event>)> {
-        // Assert sides turn
-        let (side, piece) = self
-            .get_piece_at(ply.from())
-            .ok_or(Error::InvalidArgument)?;
-
-        if side as u8 != self.get_side_turn() as u8 {
-            return Err(Error::InvalidArgument);
-        }
-
-        // Make new board and event bag
-        let mut board_new = self.duplicate();
-        let mut events = Vec::new();
-
-        // Reset en passants
-        for file in board_new.flags.get_en_passant_open_files().iter() {
-            events.push(Event::EnPassantClosed(*file));
-        }
-
-        let from = ply.from();
-        let to = ply.to();
-
-        board_new.flags.reset_en_passant_open_files();
-        board_new.flags.set_whites_turn(match side {
-            Side::White => false,
-            Side::Black => true,
-        });
-
-        let opponent_side = side.flip();
-        let opponent_pieces = self.get_pieces_by_side(opponent_side);
-
-        // Move & capture pieces
-        match piece {
-            Piece::Pawn => {
-                let file_from: File = from.into();
-                let file_to: File = to.into();
-                let rank_to: Rank = to.into();
-
-                // Reset halfmove clock
-                board_new.halfmove_clock = 0;
-
-                // Is capture?
-                if file_from != file_to {
-                    let en_passant = (BitBoard::square(to) & opponent_pieces).is_empty();
-                    let captured_square = if en_passant {
-                        match side {
-                            Side::White => BitBoard::from(to).south_one().pop_square(),
-                            Side::Black => BitBoard::from(to).north_one().pop_square(),
-                        }
-                    } else {
-                        to
-                    };
-
-                    let (_, captured_piece) = board_new.get_piece_at(captured_square).unwrap();
-
-                    board_new.clear_piece(captured_square);
-
-                    events.push(Event::PieceLeftSquare(
-                        opponent_side,
-                        captured_piece,
-                        captured_square,
-                    ));
-
-                    board_new.clear_piece(from);
-                    board_new.set_piece(side, piece, to);
-
-                    events.push(Event::PieceLeftSquare(side, piece, from));
-                    events.push(Event::PieceEnteredSquare(side, piece, to));
-                } else {
-                    // Is double push?
-                    let rank_from: Rank = from.into();
-
-                    if let (Rank::_2, Rank::_4) | (Rank::_7, Rank::_5) = (rank_from, rank_to) {
-                        let file: File = to.into();
-                        board_new.flags.set_en_passant_open(file, true);
-                        events.push(Event::EnPassantOpened(file));
-
-                        board_new.clear_piece(from);
-                        board_new.set_piece(side, piece, to);
-
-                        events.push(Event::PieceLeftSquare(side, piece, from));
-                        events.push(Event::PieceEnteredSquare(side, piece, to));
-
-                        return Ok((board_new, events));
-                    }
-                }
-
-                // Is promotion?
-                if let Rank::_8 | Rank::_1 = rank_to {
-                    let new_piece = ply.promotion().ok_or(Error::InvalidArgument)?;
-
-                    board_new.clear_piece(from);
-                    board_new.set_piece(side, new_piece, to);
-
-                    events.push(Event::PieceLeftSquare(side, piece, from));
-                    events.push(Event::PieceEnteredSquare(side, new_piece, to));
-                } else {
-                    board_new.clear_piece(from);
-                    board_new.set_piece(side, piece, to);
-
-                    events.push(Event::PieceLeftSquare(side, piece, from));
-                    events.push(Event::PieceEnteredSquare(side, piece, to));
-                }
-            }
-            Piece::King => {
-                // Handle captures
-                let is_capture = (BitBoard::square(to) & opponent_pieces).not_empty();
-                if is_capture {
-                    let (_, captured_piece) = board_new.get_piece_at(to).unwrap();
-                    board_new.clear_piece(to);
-                    events.push(Event::PieceLeftSquare(opponent_side, captured_piece, to));
-
-                    // Reset halfmove clock
-                    board_new.halfmove_clock = 0;
-                } else {
-                    let (
-                        king_square,
-                        cstl_ks_k_square,
-                        cstl_ks_r_from_square,
-                        cstl_ks_r_to_square,
-                        cstl_qs_k_square,
-                        cstl_qs_r_from_square,
-                        cstl_qs_r_to_square,
-                    ) = match side {
-                        Side::White => (
-                            Square::E1,
-                            Square::G1,
-                            Square::H1,
-                            Square::F1,
-                            Square::C1,
-                            Square::A1,
-                            Square::D1,
-                        ),
-                        Side::Black => (
-                            Square::E8,
-                            Square::G8,
-                            Square::H8,
-                            Square::F8,
-                            Square::C8,
-                            Square::A8,
-                            Square::D8,
-                        ),
-                    };
-
-                    // Is castling?
-                    if from == king_square {
-                        match to {
-                            to if to == cstl_ks_k_square => {
-                                board_new.clear_piece(cstl_ks_r_from_square);
-                                board_new.set_piece(side, Piece::Rook, cstl_ks_r_to_square);
-
-                                events.push(Event::PieceLeftSquare(
-                                    side,
-                                    Piece::Rook,
-                                    cstl_ks_r_from_square,
-                                ));
-                                events.push(Event::PieceEnteredSquare(
-                                    side,
-                                    Piece::Rook,
-                                    cstl_ks_r_to_square,
-                                ));
-                            }
-                            to if to == cstl_qs_k_square => {
-                                board_new.clear_piece(cstl_qs_r_from_square);
-                                board_new.set_piece(side, Piece::Rook, cstl_qs_r_to_square);
-
-                                events.push(Event::PieceLeftSquare(
-                                    side,
-                                    Piece::Rook,
-                                    cstl_qs_r_from_square,
-                                ));
-                                events.push(Event::PieceEnteredSquare(
-                                    side,
-                                    Piece::Rook,
-                                    cstl_qs_r_to_square,
-                                ));
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-
-                // Revoke castling rights if not already
-                if self.get_flags().get_king_side_castling_right(side) {
-                    board_new.flags.set_king_side_castling_right(side, false);
-                    events.push(Event::KingSideCastlingRightLost(side));
-                }
-
-                if self.get_flags().get_queen_side_castling_right(side) {
-                    board_new.flags.set_queen_side_castling_right(side, false);
-                    events.push(Event::QueenSideCastlingRightLost(side));
-                }
-
-                board_new.clear_piece(from);
-                board_new.set_piece(side, piece, to);
-
-                events.push(Event::PieceLeftSquare(side, piece, from));
-                events.push(Event::PieceEnteredSquare(side, piece, to));
-            }
-            Piece::Knight | Piece::Bishop | Piece::Queen => {
-                // Handle captures
-                let is_capture = (BitBoard::square(to) & opponent_pieces).not_empty();
-                if is_capture {
-                    let (_, captured_piece) = board_new.get_piece_at(to).unwrap();
-                    board_new.clear_piece(to);
-                    events.push(Event::PieceLeftSquare(opponent_side, captured_piece, to));
-
-                    // Reset halfmove clock
-                    board_new.halfmove_clock = 0;
-                }
-
-                board_new.clear_piece(from);
-                board_new.set_piece(side, piece, to);
-
-                events.push(Event::PieceLeftSquare(side, piece, from));
-                events.push(Event::PieceEnteredSquare(side, piece, to));
-            }
-            Piece::Rook => {
-                // Handle captures
-                let is_capture = (BitBoard::square(to) & opponent_pieces).not_empty();
-                if is_capture {
-                    let (_, captured_piece) = board_new.get_piece_at(to).unwrap();
-                    board_new.clear_piece(to);
-                    events.push(Event::PieceLeftSquare(opponent_side, captured_piece, to));
-
-                    // Reset halfmove clock
-                    board_new.halfmove_clock = 0;
-                }
-
-                // Revoke castling rights
-                let (king_side_origin, queen_side_origin) = match side {
-                    Side::White => (Square::H1, Square::A1),
-                    Side::Black => (Square::H8, Square::A8),
-                };
-
-                if from == king_side_origin && self.get_flags().get_king_side_castling_right(side) {
-                    board_new.flags.set_king_side_castling_right(side, false);
-                    events.push(Event::KingSideCastlingRightLost(side));
-                } else if from == queen_side_origin
-                    && self.get_flags().get_queen_side_castling_right(side)
-                {
-                    board_new.flags.set_queen_side_castling_right(side, false);
-                    events.push(Event::QueenSideCastlingRightLost(side));
-                }
-
-                board_new.clear_piece(from);
-                board_new.set_piece(side, piece, to);
-
-                events.push(Event::PieceLeftSquare(side, piece, from));
-                events.push(Event::PieceEnteredSquare(side, piece, to));
-            }
-        }
-
-        events.push(Event::NextTurn(opponent_side));
-
-        Ok((board_new, events))
-    }
-
-    // TODO test
-    fn get_pseudo_legal_moves_from(&self, from: Square) -> BitBoard {
-        match self.get_piece_at(from) {
+    pub fn pseudo_legal_moves_from(
+        &self,
+        from: Square,
+        king_castling_right: bool,
+        queen_castling_right: bool,
+        en_passant_files: Vec<File>,
+    ) -> BitBoard {
+        match self.piece_at(from) {
             None => BitBoard::EMPTY,
             Some((side, piece)) => {
-                let not_own_pieces = !self.get_pieces_by_side(side);
+                let not_own_pieces = !self.pieces_by_side(side);
 
                 match (side, piece) {
                     (_, Piece::Bishop) => self.bishop_attacks(from) & not_own_pieces,
@@ -696,7 +254,7 @@ impl Board {
 
                         let mut castling_queen_side = BitBoard::EMPTY;
 
-                        if self.get_flags().get_queen_side_castling_right(side) {
+                        if queen_castling_right {
                             castling_queen_side |= (king.west_one() & not_occuppied).west_one()
                                 & not_occuppied
                                 & BitBoard::FILE_C;
@@ -704,7 +262,7 @@ impl Board {
 
                         let mut castling_king_side = BitBoard::EMPTY;
 
-                        if self.get_flags().get_king_side_castling_right(side) {
+                        if king_castling_right {
                             castling_king_side |= (king.east_one() & not_occuppied).east_one()
                                 & not_occuppied
                                 & BitBoard::FILE_G;
@@ -724,9 +282,7 @@ impl Board {
                             sgl_targets | sgl_targets.north_one() & BitBoard::RANK_4;
 
                         let pas_targets: BitBoard = BitBoard::RANK_6
-                            & self
-                                .get_flags()
-                                .get_en_passant_open_files()
+                            & en_passant_files
                                 .iter()
                                 .fold(BitBoard::EMPTY, |bb, file| bb & BitBoard::from(*file));
 
@@ -742,9 +298,7 @@ impl Board {
                             sgl_targets | sgl_targets.south_one() & BitBoard::RANK_5;
 
                         let pas_targets: BitBoard = BitBoard::RANK_3
-                            & self
-                                .get_flags()
-                                .get_en_passant_open_files()
+                            & en_passant_files
                                 .iter()
                                 .fold(BitBoard::EMPTY, |bb, file| bb & BitBoard::from(*file));
 
@@ -755,7 +309,7 @@ impl Board {
         }
     }
 
-    fn set_piece(&mut self, side: Side, piece: Piece, square: Square) {
+    pub fn set_piece(&mut self, side: Side, piece: Piece, square: Square) {
         let bb = BitBoard::square(square);
 
         match side {
@@ -773,7 +327,7 @@ impl Board {
         }
     }
 
-    fn clear_piece(&mut self, square: Square) {
+    pub fn clear_piece(&mut self, square: Square) {
         let not_bb = !BitBoard::square(square);
 
         self.black &= not_bb;
@@ -785,14 +339,14 @@ impl Board {
         self.kings &= not_bb;
     }
 
-    fn get_pieces_by_side(&self, side: Side) -> BitBoard {
+    pub fn pieces_by_side(&self, side: Side) -> BitBoard {
         match side {
             Side::White => self.white,
             Side::Black => self.black,
         }
     }
 
-    fn get_piece_at(&self, square: Square) -> Option<(Side, Piece)> {
+    pub fn piece_at(&self, square: Square) -> Option<(Side, Piece)> {
         let side = if self.white.get(square) {
             Side::White
         } else if self.black.get(square) {
@@ -885,7 +439,7 @@ mod tests {
         let square = Square::new(File::G, Rank::_5);
 
         assert_eq!(
-            board.get_ray_attacks(square, Direction::SouthWest),
+            board.ray_attacks(square, Direction::SouthWest),
             0x20100800.into()
         );
     }
@@ -896,7 +450,7 @@ mod tests {
         let square = Square::new(File::D, Rank::_5);
 
         assert_eq!(
-            board.get_ray_attacks(square, Direction::North),
+            board.ray_attacks(square, Direction::North),
             0x8080000000000.into()
         );
     }
@@ -908,11 +462,11 @@ mod tests {
                 .into_iter()
                 .collect();
 
-        let board = Board::new(pieces, Flags::default(), 0);
+        let board = Board::new(pieces);
         let square = Square::new(File::H, Rank::_8);
 
         assert_eq!(
-            board.get_ray_attacks(square, Direction::SouthWest),
+            board.ray_attacks(square, Direction::SouthWest),
             0x40201008040201.into()
         );
     }
@@ -956,18 +510,6 @@ mod tests {
         .into_iter()
         .collect();
 
-        assert_eq!(Board::default().get_pieces(), pieces);
-    }
-
-    #[test]
-    fn try_make_pseudo_legal_move_pawn_c2_to_d2() {
-        let pieces: Vec<(Side, Piece, Square)> = vec![(Side::White, Piece::Pawn, 10u8.into())]
-            .into_iter()
-            .collect();
-
-        let board = Board::new(pieces, Flags::default(), 0);
-        let ply = Ply::new(10.into(), 18.into(), None);
-
-        let _ = board.try_make_pseudo_legal_move(ply).unwrap();
+        assert_eq!(Board::default().pieces(), pieces);
     }
 }
