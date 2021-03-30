@@ -28,10 +28,10 @@ mod dot_chess {
 
     pub type Result<T> = core::result::Result<T, Error>;
 
-    #[derive(Encode, Decode, Debug, Copy, Clone)]
+    #[derive(Encode, Decode, Debug, Clone)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum Error {
-        InvalidArgument,
+        InvalidArgument(String),
         InvalidCaller,
         IllegalMove,
         Other,
@@ -150,7 +150,10 @@ mod dot_chess {
                 GameOverReason::Repetition if self.game.is_repetition() => {
                     self.terminate_game(None, GameOverReason::Repetition)
                 }
-                _ => Err(Error::InvalidArgument),
+                reason => Err(Error::InvalidArgument(format!(
+                    "Draw claim due to {:?} doesn't meet requirements",
+                    reason
+                ))),
             }
         }
 
@@ -214,8 +217,8 @@ mod dot_chess {
 
             let mut chess = DotChess::new(white, black);
 
-            chess.make_move(10, 18, None).unwrap();
-            chess.make_move(53, 45, None).unwrap();
+            chess.make_move("d2d3".to_string()).unwrap();
+            chess.make_move("g7g6".to_string()).unwrap();
         }
     }
 }

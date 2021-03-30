@@ -38,7 +38,7 @@ impl core::convert::TryFrom<u8> for Rank {
             5 => Ok(Self::_6),
             6 => Ok(Self::_7),
             7 => Ok(Self::_8),
-            _ => Err(Error::InvalidArgument),
+            n => Err(Error::InvalidArgument(format!("Invalid Rank index: {}", n))),
         }
     }
 }
@@ -56,7 +56,7 @@ impl core::convert::TryFrom<char> for Rank {
             '6' => Ok(Self::_6),
             '7' => Ok(Self::_7),
             '8' => Ok(Self::_8),
-            _ => Err(Error::InvalidArgument),
+            c => Err(Error::InvalidArgument(format!("Invalid Rank char: {}", c))),
         }
     }
 }

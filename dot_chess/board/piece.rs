@@ -34,7 +34,10 @@ impl core::convert::TryFrom<u8> for Piece {
             3 => Ok(Piece::Rook),
             4 => Ok(Piece::Queen),
             5 => Ok(Piece::King),
-            _ => Err(Error::InvalidArgument),
+            n => Err(Error::InvalidArgument(format!(
+                "Invalid Piece index: {}",
+                n
+            ))),
         }
     }
 }
@@ -63,7 +66,7 @@ impl core::convert::TryFrom<char> for Piece {
             'b' => Ok(Piece::Bishop),
             'q' => Ok(Piece::Queen),
             'k' => Ok(Piece::Knight),
-            _ => Err(Error::InvalidArgument),
+            c => Err(Error::InvalidArgument(format!("Invalid Piece char: {}", c))),
         }
     }
 }

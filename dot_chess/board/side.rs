@@ -27,7 +27,7 @@ impl core::convert::TryFrom<u8> for Side {
         match value {
             0 => Ok(Self::White),
             1 => Ok(Self::Black),
-            _ => Err(Error::InvalidArgument),
+            n => Err(Error::InvalidArgument(format!("Invalid Side index: {}", n))),
         }
     }
 }

@@ -347,15 +347,12 @@ mod tests {
     #[test]
     fn ray_attacks_sw_g5() {
         let mut board = Board::empty();
-        let square = Square::new(File::G, Rank::_5);
 
-        let pieces = [(Side::White, Piece::Queen, square)];
-        for (side, piece, square) in pieces.iter() {
-            board.set_piece(*side, *piece, *square);
-        }
+        board.set_piece(Side::Black, Piece::Rook, Square::new(File::C, Rank::_1));
+        board.set_piece(Side::Black, Piece::Pawn, Square::new(File::D, Rank::_2));
 
         assert_eq!(
-            board.ray_attacks(square, Direction::SouthWest),
+            board.ray_attacks(Square::new(File::G, Rank::_5), Direction::SouthWest),
             0x20100800.into()
         );
     }
@@ -363,15 +360,12 @@ mod tests {
     #[test]
     fn ray_attacks_n_d5() {
         let mut board = Board::empty();
-        let square = Square::new(File::D, Rank::_5);
 
-        let pieces = [(Side::White, Piece::Queen, square)];
-        for (side, piece, square) in pieces.iter() {
-            board.set_piece(*side, *piece, *square);
-        }
+        board.set_piece(Side::Black, Piece::Rook, Square::new(File::D, Rank::_8));
+        board.set_piece(Side::Black, Piece::Pawn, Square::new(File::D, Rank::_7));
 
         assert_eq!(
-            board.ray_attacks(square, Direction::North),
+            board.ray_attacks(Square::new(File::D, Rank::_5), Direction::North),
             0x8080000000000.into()
         );
     }

@@ -456,20 +456,26 @@ impl Game {
         halfmove_clock: &mut HalfmoveClock,
         fullmove_number: &mut FullmoveNumber,
     ) -> Result<()> {
+        let new_error = || Error::InvalidArgument(format!("Malformed FEN string: {}", fen));
+
         let mut fen_chars = fen.chars();
 
         // Parse positions
         let mut index: u8 = 0;
 
         loop {
-            let char = fen_chars.nth(0).ok_or(Error::InvalidArgument)?;
+            let char = fen_chars.nth(0).ok_or_else(new_error)?;
 
             if char.is_whitespace() {
                 break;
             }
 
+            if char == '/' {
+                continue;
+            }
+
             if char.is_numeric() {
-                index += char.to_digit(10).ok_or(Error::InvalidArgument)? as u8;
+                index += char.to_digit(10).ok_or_else(new_error)? as u8;
                 continue;
             }
 
@@ -484,37 +490,42 @@ impl Game {
                 let square: Square = index.into();
 
                 board.set_piece(side, piece, square);
+                index += 1;
                 continue;
             }
 
             // Unexpected character
-            return Err(Error::InvalidArgument);
+            return Err(new_error());
         }
 
         // Validate entire board has been populated
-        if index != 63 {
-            return Err(Error::InvalidArgument);
+        if index != 64 {
+            return Err(new_error());
         }
 
         // Parse turn
-        let char = fen_chars.nth(0).ok_or(Error::InvalidArgument)?;
+        let char = fen_chars.nth(0).ok_or_else(new_error)?;
 
         let side = match char {
             'w' => Side::White,
             'b' => Side::Black,
-            _ => return Err(Error::InvalidArgument),
+            _ => return Err(new_error()),
         };
 
         state.set_next_turn_side(side);
 
         // Parse castling rights
-        fen_chars.advance_by(1).or(Err(Error::InvalidArgument))?;
+        fen_chars.advance_by(1).or_else(|_| Err(new_error()))?;
 
         loop {
-            let char = fen_chars.nth(0).ok_or(Error::InvalidArgument)?;
+            let char = fen_chars.nth(0).ok_or_else(new_error)?;
 
-            if char.is_whitespace() || char == '-' {
+            if char.is_whitespace() {
                 break;
+            }
+
+            if char == '-' {
+                continue;
             }
 
             if char.is_alphabetic() {
@@ -527,27 +538,27 @@ impl Game {
                 match char.to_ascii_lowercase() {
                     'q' => state.set_queen_side_castling_right(side, true),
                     'k' => state.set_king_side_castling_right(side, true),
-                    _ => return Err(Error::InvalidArgument),
+                    _ => return Err(new_error()),
                 }
 
                 continue;
             }
 
             // Unexpected character
-            return Err(Error::InvalidArgument);
+            return Err(new_error());
         }
 
         // Parse en passants
-        fen_chars.advance_by(1).or(Err(Error::InvalidArgument))?;
+        fen_chars.advance_by(1).or_else(|_| Err(new_error()))?;
 
         loop {
-            let char = fen_chars.nth(0).ok_or(Error::InvalidArgument)?;
+            let char = fen_chars.nth(0).ok_or_else(new_error)?;
 
-            if char.is_whitespace() || char == '-' {
+            if char.is_whitespace() {
                 break;
             }
 
-            if char.is_numeric() {
+            if char.is_numeric() || char == '-' {
                 continue;
             }
 
@@ -558,22 +569,22 @@ impl Game {
             }
 
             // Unexpected character
-            return Err(Error::InvalidArgument);
+            return Err(new_error());
         }
 
         // Parse halfmove clock
         *halfmove_clock = fen_chars
-            .nth(1)
-            .ok_or(Error::InvalidArgument)?
+            .nth(0)
+            .ok_or_else(new_error)?
             .to_digit(10)
-            .ok_or(Error::InvalidArgument)?;
+            .ok_or_else(new_error)?;
 
         // Parse Fullmove number
         *fullmove_number = fen_chars
             .nth(1)
-            .ok_or(Error::InvalidArgument)?
+            .ok_or_else(new_error)?
             .to_digit(10)
-            .ok_or(Error::InvalidArgument)?;
+            .ok_or_else(new_error)?;
 
         Ok(())
     }
@@ -598,10 +609,10 @@ impl Game {
         let (side, piece) = self
             .board
             .piece_at(mov.from())
-            .ok_or(Error::InvalidArgument)?;
+            .ok_or(Error::InvalidArgument(format!("Origin square is empty")))?;
 
         if side as u8 != self.next_turn_side() as u8 {
-            return Err(Error::InvalidArgument);
+            return Err(Error::InvalidArgument(format!("Not its turn")));
         }
 
         let from = mov.from();
@@ -680,7 +691,8 @@ impl Game {
 
                     // Is promotion?
                     let new_piece = if let Rank::_8 | Rank::_1 = rank_to {
-                        mov.promotion().ok_or(Error::InvalidArgument)?
+                        mov.promotion()
+                            .ok_or(Error::InvalidArgument(format!("Missing promotion choice")))?
                     } else {
                         piece
                     };
@@ -865,9 +877,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn make_pseudo_legal_move_pawn_c2_to_d2() {
+    fn apply_fen_default() -> Result<()> {
+        let mut board = Board::empty();
+        let mut state = State::zero();
+        let mut halfmove_clock = 0;
+        let mut fullmove_number = 0;
+
+        Game::apply_fen(
+            Game::FEN_NEW_GAME,
+            &mut board,
+            &mut state,
+            &mut halfmove_clock,
+            &mut fullmove_number,
+        )?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn make_pseudo_legal_move_pawn_c2_to_d2() -> Result<()> {
         let mov = Mov::new(10.into(), 18.into(), None);
 
         Game::new(Game::FEN_NEW_GAME)?.make_pseudo_legal_move(mov)?;
+
+        Ok(())
     }
 }

@@ -30,7 +30,10 @@ impl core::convert::TryFrom<u8> for GameOverReason {
             3 => Ok(Self::Resignation),
             4 => Ok(Self::Repetition),
             5 => Ok(Self::FiftyMoveRule),
-            _ => Err(Error::InvalidArgument),
+            n => Err(Error::InvalidArgument(format!(
+                "Invalid GameOverReason index: {}",
+                n
+            ))),
         }
     }
 }

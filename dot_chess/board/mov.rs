@@ -19,14 +19,16 @@ impl core::convert::TryFrom<&str> for Mov {
     type Error = Error;
 
     fn try_from(value: &str) -> Result<Self> {
+        let error_invalid_mov = || Error::InvalidArgument(format!("Invalid move: {}", value));
+
         let mut chars = value.chars();
 
-        let file: File = chars.next().ok_or(Error::InvalidArgument)?.try_into()?;
-        let rank: Rank = chars.next().ok_or(Error::InvalidArgument)?.try_into()?;
+        let file: File = chars.next().ok_or_else(error_invalid_mov)?.try_into()?;
+        let rank: Rank = chars.next().ok_or_else(error_invalid_mov)?.try_into()?;
         let from = Square::new(file, rank);
 
-        let file: File = chars.next().ok_or(Error::InvalidArgument)?.try_into()?;
-        let rank: Rank = chars.next().ok_or(Error::InvalidArgument)?.try_into()?;
+        let file: File = chars.next().ok_or_else(error_invalid_mov)?.try_into()?;
+        let rank: Rank = chars.next().ok_or_else(error_invalid_mov)?.try_into()?;
         let to = Square::new(file, rank);
 
         let promotion: Option<Piece> = match chars.next() {

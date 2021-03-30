@@ -37,7 +37,7 @@ impl core::convert::TryFrom<u8> for File {
             5 => Ok(Self::F),
             6 => Ok(Self::G),
             7 => Ok(Self::H),
-            _ => Err(Error::InvalidArgument),
+            n => Err(Error::InvalidArgument(format!("Invalid File index: {}", n))),
         }
     }
 }
@@ -70,7 +70,7 @@ impl core::convert::TryFrom<char> for File {
             'f' => Ok(Self::F),
             'g' => Ok(Self::G),
             'h' => Ok(Self::H),
-            _ => Err(Error::InvalidArgument),
+            c => Err(Error::InvalidArgument(format!("Invalid File char: {}", c))),
         }
     }
 }
