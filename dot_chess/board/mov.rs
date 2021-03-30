@@ -1,20 +1,28 @@
 use super::{square::Square, Piece};
-use crate::dot_chess::Result;
+use crate::dot_chess::{Error, Result};
 use core::convert::TryFrom;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 
-type PlyEncoded = u16;
+type MovEncoded = u16;
 
 #[derive(Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
-pub struct Ply {
+pub struct Mov {
     from: Square,
     to: Square,
     promotion: Option<Piece>,
 }
 
-impl Ply {
+impl core::convert::TryFrom<&str> for Mov {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self> {
+        todo!()
+    }
+}
+
+impl Mov {
     pub fn new(from: Square, to: Square, promotion: Option<Piece>) -> Self {
         Self {
             from,
@@ -35,7 +43,7 @@ impl Ply {
         self.promotion
     }
 
-    pub fn decode(encoded: PlyEncoded) -> Result<Self> {
+    pub fn decode(encoded: MovEncoded) -> Result<Self> {
         let promotion = match ((encoded >> 12) & 0b00001111) as u8 {
             0 => None,
             n => Some(<Piece as TryFrom<u8>>::try_from(n)?),
@@ -54,7 +62,7 @@ impl Ply {
         })
     }
 
-    pub fn encode(&self) -> PlyEncoded {
+    pub fn encode(&self) -> MovEncoded {
         let promotion: u8 = match self.promotion {
             Some(piece) => piece.into(),
             None => 0,
@@ -77,25 +85,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ply_encode() {
+    fn mov_encode() {
         let promotion = Some(Piece::Queen);
         let from: Square = 0b00110111u8.into();
         let to: Square = 0b00101001u8.into();
 
-        let encoded = Ply::new(from, to, promotion).encode();
+        let encoded = Mov::new(from, to, promotion).encode();
 
         assert_eq!(encoded, 0b01001101_11101001u16);
     }
 
     #[test]
-    fn ply_decode() {
+    fn mov_decode() {
         let encoded = 0b01001101_11101001u16;
 
-        let ply = Ply::decode(encoded).unwrap();
-        let from: u8 = ply.from.into();
-        let to: u8 = ply.to.into();
+        let mov = Mov::decode(encoded).unwrap();
+        let from: u8 = mov.from.into();
+        let to: u8 = mov.to.into();
 
-        assert_eq!(ply.promotion, Some(Piece::Queen));
+        assert_eq!(mov.promotion, Some(Piece::Queen));
         assert_eq!(from, 0b00110111u8);
         assert_eq!(to, 0b00101001u8);
     }

@@ -13,7 +13,7 @@ use ink_lang as ink;
 #[ink::contract]
 mod dot_chess {
 
-    use crate::board::{Ply, Side};
+    use crate::board::{Mov, Side};
     use crate::game::Game;
     use crate::gameover::GameOverReason;
     use alloc::string::String;
@@ -96,8 +96,6 @@ mod dot_chess {
         }
 
         /// Makes a move
-        ///
-        /// Returns true if move was successful
         #[ink(message)]
         pub fn make_move(&mut self, mov: String) -> Result<()> {
             if !self.is_callers_turn() {
@@ -105,10 +103,10 @@ mod dot_chess {
             }
 
             let side = self.game.next_turn_side();
-            let ply = Self::parse_mov(mov.as_str())?;
+            let moov: Mov = mov.as_str().try_into()?;
 
             // Make move
-            let game_new = self.game.make_move(ply)?;
+            let game_new = self.game.make_move(moov)?;
 
             // Opponent out of moves?
             if !game_new.has_legal_moves() {
@@ -131,7 +129,7 @@ mod dot_chess {
             self.env().emit_event(PlayerMoved {
                 side: side.into(),
                 mov,
-                fen: self.fen()?,
+                fen: self.game.fen()?,
             });
 
             Ok(())
@@ -189,7 +187,7 @@ mod dot_chess {
             self.env().terminate_contract(FEE_BENEFICIARY.into())
         }
 
-        fn parse_mov(mov: &str) -> Result<Ply> {
+        fn parse_mov(mov: &str) -> Result<Mov> {
             todo!()
         }
 

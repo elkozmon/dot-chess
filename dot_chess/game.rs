@@ -1,4 +1,4 @@
-use crate::board::{BitBoard, Board, File, Piece, Ply, Rank, Side, Square};
+use crate::board::{BitBoard, Board, File, Piece, Mov, Rank, Side, Square};
 use crate::dot_chess::{Error, Result};
 use crate::zobrist::ZobristHash;
 use alloc::string::String;
@@ -399,9 +399,9 @@ impl Game {
             let to = pseudo_moves.pop_square();
 
             // Use queen promotion in case its a promo-move, otherwise it doesn't matter
-            let ply = Ply::new(from, to, Some(Piece::Queen));
+            let mov = Mov::new(from, to, Some(Piece::Queen));
 
-            let (board, ..) = self.make_pseudo_legal_move(ply).unwrap();
+            let (board, ..) = self.make_pseudo_legal_move(mov).unwrap();
 
             // Assert king not attacked
             if board.is_king_attacked(self.next_turn_side()) {
@@ -415,14 +415,14 @@ impl Game {
     }
 
     // TODO test
-    pub fn make_move(&self, ply: Ply) -> Result<Self> {
+    pub fn make_move(&self, mov: Mov) -> Result<Self> {
         // Assert move is pseudo legal
-        if (self.pseudo_legal_moves_from(ply.from()) & BitBoard::square(ply.to())).is_empty() {
+        if (self.pseudo_legal_moves_from(mov.from()) & BitBoard::square(mov.to())).is_empty() {
             return Err(Error::IllegalMove);
         }
 
         let (board, state, zhash, halfmove_clock, fullmove_number) =
-            self.make_pseudo_legal_move(ply)?;
+            self.make_pseudo_legal_move(mov)?;
 
         // Assert king not attacked
         if board.is_king_attacked(self.next_turn_side()) {
@@ -593,20 +593,20 @@ impl Game {
     // TODO revoke opponents castling rights if this move attacks his castling path
     fn make_pseudo_legal_move(
         &self,
-        ply: Ply,
+        mov: Mov,
     ) -> Result<(Board, State, ZobristHash, HalfmoveClock, FullmoveNumber)> {
         // Assert sides turn
         let (side, piece) = self
             .board
-            .piece_at(ply.from())
+            .piece_at(mov.from())
             .ok_or(Error::InvalidArgument)?;
 
         if side as u8 != self.next_turn_side() as u8 {
             return Err(Error::InvalidArgument);
         }
 
-        let from = ply.from();
-        let to = ply.to();
+        let from = mov.from();
+        let to = mov.to();
 
         let opponent_side = side.flip();
         let opponent_pieces = self.board.pieces_by_side(opponent_side);
@@ -687,7 +687,7 @@ impl Game {
 
                 // Is promotion?
                 let new_piece = if let Rank::_8 | Rank::_1 = rank_to {
-                    ply.promotion().ok_or(Error::InvalidArgument)?
+                    mov.promotion().ok_or(Error::InvalidArgument)?
                 } else {
                     piece
                 };
@@ -865,8 +865,8 @@ mod tests {
 
     #[test]
     fn make_pseudo_legal_move_pawn_c2_to_d2() {
-        let ply = Ply::new(10.into(), 18.into(), None);
+        let mov = Mov::new(10.into(), 18.into(), None);
 
-        Game::new(Game::FEN_NEW_GAME)?.make_pseudo_legal_move(ply)?;
+        Game::new(Game::FEN_NEW_GAME)?.make_pseudo_legal_move(mov)?;
     }
 }
