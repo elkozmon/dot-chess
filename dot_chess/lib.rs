@@ -1,4 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(iter_advance_by)]
 
 extern crate alloc;
 
@@ -12,13 +13,11 @@ use ink_lang as ink;
 #[ink::contract]
 mod dot_chess {
 
-    use crate::board::{Board, Piece, Ply, Side, Square};
+    use crate::board::{Ply, Side};
     use crate::game::Game;
     use crate::gameover::GameOverReason;
-    use crate::zobrist::ZobristHash;
     use alloc::string::String;
     use core::convert::TryInto;
-    use ink_storage::Vec;
     use scale::{Decode, Encode};
 
     const BALANCE_DISTRIBUTION_RATIO: Balance = 98;
@@ -44,6 +43,12 @@ mod dot_chess {
         }
     }
 
+    impl core::convert::From<core::fmt::Error> for Error {
+        fn from(_: core::fmt::Error) -> Self {
+            Self::Other
+        }
+    }
+
     #[ink(event)]
     pub struct PlayerMoved {
         #[ink(topic)]
@@ -64,7 +69,7 @@ mod dot_chess {
         white: AccountId,
         /// Account playing as black
         black: AccountId,
-        /// Match state
+        /// Game state
         game: ink_storage::Pack<Game>,
     }
 
@@ -72,36 +77,35 @@ mod dot_chess {
         /// Initiates new game
         #[ink(constructor)]
         pub fn new(white: AccountId, black: AccountId) -> Self {
-            let game = ink_storage::Pack::new(Game::new());
+            Self::from_fen(white, black, Game::FEN_NEW_GAME.to_string())
+        }
+
+        /// Initiates game from given FEN
+        #[ink(constructor)]
+        pub fn from_fen(white: AccountId, black: AccountId, fen: String) -> Self {
+            let game = Game::new(fen.as_str()).unwrap();
+            let game = ink_storage::Pack::new(game);
 
             Self { white, black, game }
         }
 
         /// Returns FEN string representation of current game
         #[ink(message)]
-        pub fn fen(&self) -> &'static str {
-            todo!()
+        pub fn fen(&self) -> Result<String> {
+            self.game.fen()
         }
 
         /// Makes a move
         ///
         /// Returns true if move was successful
         #[ink(message)]
-        pub fn make_move(&mut self, from: u8, to: u8, promotion: Option<u8>) -> Result<()> {
+        pub fn make_move(&mut self, mov: String) -> Result<()> {
             if !self.is_callers_turn() {
                 return Err(Error::InvalidCaller);
             }
 
-            // TODO rewrite to string arg
-            let from: Square = from.into();
-            let to: Square = to.into();
-            let promotion: Option<Piece> = match promotion {
-                Some(val) => Some(val.try_into()?),
-                None => None,
-            };
-
             let side = self.game.next_turn_side();
-            let ply = Ply::new(from, to, promotion);
+            let ply = Self::parse_mov(mov.as_str())?;
 
             // Make move
             let game_new = self.game.make_move(ply)?;
@@ -124,11 +128,10 @@ mod dot_chess {
             self.game = ink_storage::Pack::new(game_new);
 
             // Emit event
-            // TODO
             self.env().emit_event(PlayerMoved {
                 side: side.into(),
-                mov: String::from(""),
-                fen: String::from(""),
+                mov,
+                fen: self.fen()?,
             });
 
             Ok(())
@@ -184,6 +187,10 @@ mod dot_chess {
 
             self.env().emit_event(GameOver { winner, reason });
             self.env().terminate_contract(FEE_BENEFICIARY.into())
+        }
+
+        fn parse_mov(mov: &str) -> Result<Ply> {
+            todo!()
         }
 
         fn is_callers_turn(&self) -> bool {

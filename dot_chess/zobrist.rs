@@ -1,6 +1,5 @@
 use crate::board::{File, Piece, Side, Square};
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
-use ink_storage::Vec;
 use scale::{Decode, Encode};
 
 const ZOBRIST_KEYS: [u32; 781] = [
@@ -104,7 +103,9 @@ const ZOBRIST_KEYS: [u32; 781] = [
     3805793409, 1528232892, 610015325, 182281659, 1045836970,
 ];
 
-#[derive(Copy, Clone, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
+#[derive(
+    Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, SpreadLayout, PackedLayout,
+)]
 #[cfg_attr(feature = "std", derive(Debug, scale_info::TypeInfo, StorageLayout))]
 pub struct ZobristHash(u32);
 
@@ -157,7 +158,7 @@ impl ZobristHash {
 }
 
 impl ZobristHash {
-    pub fn new() -> Self {
+    pub fn zero() -> Self {
         Self(0)
     }
 

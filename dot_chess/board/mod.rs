@@ -8,7 +8,6 @@ mod side;
 mod square;
 
 use crate::{dot_chess::Error, zobrist::ZobristHash};
-use core::convert::TryFrom;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use ink_storage::Vec;
 use scale::{Decode, Encode};
@@ -40,7 +39,7 @@ pub struct Board {
 
 impl core::convert::Into<ZobristHash> for Board {
     fn into(self) -> ZobristHash {
-        let mut zhash = ZobristHash::new();
+        let mut zhash = ZobristHash::zero();
 
         for (side, piece, square) in self.pieces().iter() {
             zhash.flip_piece_position(*side, *piece, *square);
@@ -51,56 +50,16 @@ impl core::convert::Into<ZobristHash> for Board {
 }
 
 impl Board {
-    pub fn new(pieces: Vec<(Side, Piece, Square)>) -> Self {
-        let mut black = BitBoard::EMPTY;
-        let mut white = BitBoard::EMPTY;
-        let mut kings = BitBoard::EMPTY;
-        let mut queens = BitBoard::EMPTY;
-        let mut rooks = BitBoard::EMPTY;
-        let mut bishops = BitBoard::EMPTY;
-        let mut knights = BitBoard::EMPTY;
-        let mut pawns = BitBoard::EMPTY;
-
-        for (side, piece, square) in pieces.iter() {
-            let bitboard: BitBoard = (*square).into();
-
-            match side {
-                Side::White => white |= bitboard,
-                Side::Black => black |= bitboard,
-            };
-
-            match piece {
-                Piece::Pawn => pawns |= bitboard,
-                Piece::Knight => knights |= bitboard,
-                Piece::Bishop => bishops |= bitboard,
-                Piece::Rook => rooks |= bitboard,
-                Piece::Queen => queens |= bitboard,
-                Piece::King => kings |= bitboard,
-            };
-        }
-
+    pub fn empty() -> Self {
         Self {
-            black,
-            white,
-            kings,
-            queens,
-            rooks,
-            bishops,
-            knights,
-            pawns,
-        }
-    }
-
-    pub fn default() -> Self {
-        Self {
-            black: 0xffff000000000000.into(),
-            white: 0xffff.into(),
-            kings: 0x1000000000000010.into(),
-            queens: 0x800000000000008.into(),
-            rooks: 0x8100000000000081.into(),
-            bishops: 0x2400000000000024.into(),
-            knights: 0x4200000000000042.into(),
-            pawns: 0xff00000000ff00.into(),
+            black: BitBoard::EMPTY,
+            white: BitBoard::EMPTY,
+            kings: BitBoard::EMPTY,
+            queens: BitBoard::EMPTY,
+            rooks: BitBoard::EMPTY,
+            bishops: BitBoard::EMPTY,
+            knights: BitBoard::EMPTY,
+            pawns: BitBoard::EMPTY,
         }
     }
 
@@ -170,19 +129,6 @@ impl Board {
 
     pub fn occupied(&self) -> BitBoard {
         self.black | self.white
-    }
-
-    pub fn duplicate(&self) -> Self {
-        Self {
-            black: self.black,
-            white: self.white,
-            kings: self.kings,
-            queens: self.queens,
-            rooks: self.rooks,
-            bishops: self.bishops,
-            knights: self.knights,
-            pawns: self.pawns,
-        }
     }
 
     pub fn ray_attacks(&self, from: Square, direction: Direction) -> BitBoard {
@@ -378,65 +324,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn board_pawn_positions() {
-        let board = Board::default();
-
-        assert_eq!(board.pawns, 0xff00000000ff00.into());
-    }
-
-    #[test]
-    fn board_rook_positions() {
-        let board = Board::default();
-
-        assert_eq!(board.rooks, 0x8100000000000081.into());
-    }
-
-    #[test]
-    fn board_knight_positions() {
-        let board = Board::default();
-
-        assert_eq!(board.knights, 0x4200000000000042.into());
-    }
-
-    #[test]
-    fn board_bishop_positions() {
-        let board = Board::default();
-
-        assert_eq!(board.bishops, 0x2400000000000024.into());
-    }
-
-    #[test]
-    fn board_queen_positions() {
-        let board = Board::default();
-
-        assert_eq!(board.queens, 0x800000000000008.into());
-    }
-
-    #[test]
-    fn board_king_positions() {
-        let board = Board::default();
-
-        assert_eq!(board.kings, 0x1000000000000010.into());
-    }
-
-    #[test]
-    fn board_black_positions() {
-        let board = Board::default();
-
-        assert_eq!(board.black, 0xffff000000000000.into());
-    }
-
-    #[test]
-    fn board_white_positions() {
-        let board = Board::default();
-
-        assert_eq!(board.white, 0xffff.into());
-    }
-
-    #[test]
     fn ray_attacks_sw_g5() {
-        let board = Board::default();
+        let mut board = Board::empty();
         let square = Square::new(File::G, Rank::_5);
+
+        let pieces = [(Side::White, Piece::Queen, square)];
+        for (side, piece, square) in pieces.iter() {
+            board.set_piece(*side, *piece, *square);
+        }
 
         assert_eq!(
             board.ray_attacks(square, Direction::SouthWest),
@@ -446,8 +341,13 @@ mod tests {
 
     #[test]
     fn ray_attacks_n_d5() {
-        let board = Board::default();
+        let mut board = Board::empty();
         let square = Square::new(File::D, Rank::_5);
+
+        let pieces = [(Side::White, Piece::Queen, square)];
+        for (side, piece, square) in pieces.iter() {
+            board.set_piece(*side, *piece, *square);
+        }
 
         assert_eq!(
             board.ray_attacks(square, Direction::North),
@@ -457,13 +357,13 @@ mod tests {
 
     #[test]
     fn ray_attacks_sw_h8() {
-        let pieces: Vec<(Side, Piece, Square)> =
-            vec![(Side::White, Piece::Rook, Square::new(File::A, Rank::_1))]
-                .into_iter()
-                .collect();
-
-        let board = Board::new(pieces);
+        let mut board = Board::empty();
         let square = Square::new(File::H, Rank::_8);
+
+        let pieces = [(Side::White, Piece::Rook, Square::new(File::A, Rank::_1))];
+        for (side, piece, square) in pieces.iter() {
+            board.set_piece(*side, *piece, *square);
+        }
 
         assert_eq!(
             board.ray_attacks(square, Direction::SouthWest),
@@ -473,7 +373,9 @@ mod tests {
 
     #[test]
     fn board_get_pieces() {
-        let pieces: Vec<(Side, Piece, Square)> = vec![
+        let mut board = Board::empty();
+
+        let pieces = vec![
             (Side::White, Piece::Rook, 0u8.into()),
             (Side::White, Piece::Knight, 1u8.into()),
             (Side::White, Piece::Bishop, 2u8.into()),
@@ -506,10 +408,12 @@ mod tests {
             (Side::Black, Piece::Bishop, 61u8.into()),
             (Side::Black, Piece::Knight, 62u8.into()),
             (Side::Black, Piece::Rook, 63u8.into()),
-        ]
-        .into_iter()
-        .collect();
+        ];
 
-        assert_eq!(Board::default().pieces(), pieces);
+        for (side, piece, square) in pieces.iter() {
+            board.set_piece(*side, *piece, *square);
+        }
+
+        assert_eq!(board.pieces(), pieces.into_iter().collect());
     }
 }

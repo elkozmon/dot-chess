@@ -38,3 +38,32 @@ impl core::convert::TryFrom<u8> for Piece {
         }
     }
 }
+
+impl core::convert::Into<char> for Piece {
+    fn into(self) -> char {
+        match self {
+            Piece::Pawn => 'p',
+            Piece::Knight => 'n',
+            Piece::Bishop => 'b',
+            Piece::Rook => 'r',
+            Piece::Queen => 'q',
+            Piece::King => 'k',
+        }
+    }
+}
+
+impl core::convert::TryFrom<char> for Piece {
+    type Error = Error;
+
+    fn try_from(value: char) -> Result<Self> {
+        match value.to_ascii_lowercase() {
+            'p' => Ok(Piece::Pawn),
+            'r' => Ok(Piece::Rook),
+            'n' => Ok(Piece::Knight),
+            'b' => Ok(Piece::Bishop),
+            'q' => Ok(Piece::Queen),
+            'k' => Ok(Piece::Knight),
+            _ => Err(Error::InvalidArgument),
+        }
+    }
+}

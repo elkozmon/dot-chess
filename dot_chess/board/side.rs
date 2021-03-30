@@ -32,6 +32,15 @@ impl core::convert::TryFrom<u8> for Side {
     }
 }
 
+impl core::convert::Into<char> for Side {
+    fn into(self) -> char {
+        match self {
+            Side::White => 'w',
+            Side::Black => 'b',
+        }
+    }
+}
+
 impl Side {
     pub fn flip(&self) -> Self {
         match self {
