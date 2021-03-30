@@ -187,10 +187,6 @@ mod dot_chess {
             self.env().terminate_contract(FEE_BENEFICIARY.into())
         }
 
-        fn parse_mov(mov: &str) -> Result<Mov> {
-            todo!()
-        }
-
         fn is_callers_turn(&self) -> bool {
             let caller_account = self.env().caller();
 

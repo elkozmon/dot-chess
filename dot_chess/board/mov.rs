@@ -1,8 +1,9 @@
-use super::{square::Square, Piece};
+use super::{square::Square, File, Piece, Rank};
 use crate::dot_chess::{Error, Result};
 use core::convert::TryFrom;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
+use std::convert::TryInto;
 
 type MovEncoded = u16;
 
@@ -18,7 +19,26 @@ impl core::convert::TryFrom<&str> for Mov {
     type Error = Error;
 
     fn try_from(value: &str) -> Result<Self> {
-        todo!()
+        let mut chars = value.chars();
+
+        let file: File = chars.next().ok_or(Error::InvalidArgument)?.try_into()?;
+        let rank: Rank = chars.next().ok_or(Error::InvalidArgument)?.try_into()?;
+        let from = Square::new(file, rank);
+
+        let file: File = chars.next().ok_or(Error::InvalidArgument)?.try_into()?;
+        let rank: Rank = chars.next().ok_or(Error::InvalidArgument)?.try_into()?;
+        let to = Square::new(file, rank);
+
+        let promotion: Option<Piece> = match chars.next() {
+            Some(char) => Some(char.try_into()?),
+            None => None,
+        };
+
+        Ok(Self {
+            from,
+            to,
+            promotion,
+        })
     }
 }
 
