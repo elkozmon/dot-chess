@@ -1,8 +1,8 @@
 mod bitboard;
 mod direction;
 mod file;
-mod piece;
 mod mov;
+mod piece;
 mod rank;
 mod side;
 mod square;
@@ -15,8 +15,8 @@ use scale::{Decode, Encode};
 pub use bitboard::BitBoard;
 pub use direction::Direction;
 pub use file::File;
-pub use piece::Piece;
 pub use mov::Mov;
+pub use piece::Piece;
 pub use rank::Rank;
 pub use side::Side;
 pub use square::Square;
@@ -195,23 +195,44 @@ impl Board {
                     (_, Piece::Queen) => self.queen_attacks(from) & not_own_pieces,
                     (_, Piece::Knight) => BitBoard::knight_attacks_mask(from) & not_own_pieces,
                     (_, Piece::King) => {
+                        let op_side = side.flip();
                         let not_occuppied = !self.occupied();
+                        let is_attacked = self.is_attacked(from, op_side);
                         let king = BitBoard::square(from);
 
                         let mut castling_queen_side = BitBoard::EMPTY;
-
-                        if queen_castling_right {
-                            castling_queen_side |= (king.west_one() & not_occuppied).west_one()
-                                & not_occuppied
-                                & BitBoard::FILE_C;
-                        }
-
                         let mut castling_king_side = BitBoard::EMPTY;
 
-                        if king_castling_right {
-                            castling_king_side |= (king.east_one() & not_occuppied).east_one()
-                                & not_occuppied
-                                & BitBoard::FILE_G;
+                        if !is_attacked {
+                            let queen_castling_path = match side {
+                                Side::White => vec![Square::C1, Square::D1],
+                                Side::Black => vec![Square::C8, Square::D8],
+                            };
+
+                            if queen_castling_right
+                                && !queen_castling_path
+                                    .iter()
+                                    .any(|sq| self.is_attacked(*sq, op_side))
+                            {
+                                castling_queen_side |= (king.west_one() & not_occuppied).west_one()
+                                    & not_occuppied
+                                    & BitBoard::FILE_C;
+                            }
+
+                            let king_castling_path = match side {
+                                Side::White => vec![Square::F1, Square::G1],
+                                Side::Black => vec![Square::F8, Square::G8],
+                            };
+
+                            if king_castling_right
+                                && !king_castling_path
+                                    .iter()
+                                    .any(|sq| self.is_attacked(*sq, op_side))
+                            {
+                                castling_king_side |= (king.east_one() & not_occuppied).east_one()
+                                    & not_occuppied
+                                    & BitBoard::FILE_G;
+                            }
                         }
 
                         (BitBoard::king_attacks_mask(from) & not_own_pieces)

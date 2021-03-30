@@ -1,4 +1,4 @@
-use crate::board::{BitBoard, Board, File, Piece, Mov, Rank, Side, Square};
+use crate::board::{BitBoard, Board, File, Mov, Piece, Rank, Side, Square};
 use crate::dot_chess::{Error, Result};
 use crate::zobrist::ZobristHash;
 use alloc::string::String;
@@ -590,7 +590,6 @@ impl Game {
     }
 
     // TODO test
-    // TODO revoke opponents castling rights if this move attacks his castling path
     fn make_pseudo_legal_move(
         &self,
         mov: Mov,
@@ -655,48 +654,43 @@ impl Game {
                     board_new.set_piece(side, piece, to);
                     zhash_new.flip_piece_position(side, piece, from);
                     zhash_new.flip_piece_position(side, piece, to);
+                } else {
+                    // Is capture?
+                    if file_from != file_to {
+                        let en_passant = (BitBoard::square(to) & opponent_pieces).is_empty();
+                        let captured_square = if en_passant {
+                            match side {
+                                Side::White => BitBoard::from(to).south_one().pop_square(),
+                                Side::Black => BitBoard::from(to).north_one().pop_square(),
+                            }
+                        } else {
+                            to
+                        };
 
-                    // Early return
-                    return Ok((
-                        board_new,
-                        state_new,
-                        zhash_new,
-                        halfmove_clock_new,
-                        fullmove_number_new,
-                    ));
-                }
+                        let (_, captured_piece) = board_new.piece_at(captured_square).unwrap();
 
-                // Is capture?
-                if file_from != file_to {
-                    let en_passant = (BitBoard::square(to) & opponent_pieces).is_empty();
-                    let captured_square = if en_passant {
-                        match side {
-                            Side::White => BitBoard::from(to).south_one().pop_square(),
-                            Side::Black => BitBoard::from(to).north_one().pop_square(),
-                        }
+                        // Capture opponents piece
+                        board_new.clear_piece(captured_square);
+                        zhash_new.flip_piece_position(
+                            opponent_side,
+                            captured_piece,
+                            captured_square,
+                        );
+                    }
+
+                    // Is promotion?
+                    let new_piece = if let Rank::_8 | Rank::_1 = rank_to {
+                        mov.promotion().ok_or(Error::InvalidArgument)?
                     } else {
-                        to
+                        piece
                     };
 
-                    let (_, captured_piece) = board_new.piece_at(captured_square).unwrap();
-
-                    // Capture opponents piece
-                    board_new.clear_piece(captured_square);
-                    zhash_new.flip_piece_position(opponent_side, captured_piece, captured_square);
+                    // Move our piece
+                    board_new.clear_piece(from);
+                    board_new.set_piece(side, new_piece, to);
+                    zhash_new.flip_piece_position(side, piece, from);
+                    zhash_new.flip_piece_position(side, new_piece, to);
                 }
-
-                // Is promotion?
-                let new_piece = if let Rank::_8 | Rank::_1 = rank_to {
-                    mov.promotion().ok_or(Error::InvalidArgument)?
-                } else {
-                    piece
-                };
-
-                // Move our piece
-                board_new.clear_piece(from);
-                board_new.set_piece(side, new_piece, to);
-                zhash_new.flip_piece_position(side, piece, from);
-                zhash_new.flip_piece_position(side, new_piece, to);
             }
             Piece::King => {
                 // Revoke castling rights if not already
@@ -726,74 +720,81 @@ impl Game {
                     board_new.set_piece(side, piece, to);
                     zhash_new.flip_piece_position(side, piece, from);
                     zhash_new.flip_piece_position(side, piece, to);
+                } else {
+                    let (
+                        king_square,
+                        cstl_ks_k_square,
+                        cstl_ks_r_from_square,
+                        cstl_ks_r_to_square,
+                        cstl_qs_k_square,
+                        cstl_qs_r_from_square,
+                        cstl_qs_r_to_square,
+                    ) = match side {
+                        Side::White => (
+                            Square::E1,
+                            Square::G1,
+                            Square::H1,
+                            Square::F1,
+                            Square::C1,
+                            Square::A1,
+                            Square::D1,
+                        ),
+                        Side::Black => (
+                            Square::E8,
+                            Square::G8,
+                            Square::H8,
+                            Square::F8,
+                            Square::C8,
+                            Square::A8,
+                            Square::D8,
+                        ),
+                    };
 
-                    // Early return
-                    return Ok((
-                        board_new,
-                        state_new,
-                        zhash_new,
-                        halfmove_clock_new,
-                        fullmove_number_new,
-                    ));
-                }
-
-                let (
-                    king_square,
-                    cstl_ks_k_square,
-                    cstl_ks_r_from_square,
-                    cstl_ks_r_to_square,
-                    cstl_qs_k_square,
-                    cstl_qs_r_from_square,
-                    cstl_qs_r_to_square,
-                ) = match side {
-                    Side::White => (
-                        Square::E1,
-                        Square::G1,
-                        Square::H1,
-                        Square::F1,
-                        Square::C1,
-                        Square::A1,
-                        Square::D1,
-                    ),
-                    Side::Black => (
-                        Square::E8,
-                        Square::G8,
-                        Square::H8,
-                        Square::F8,
-                        Square::C8,
-                        Square::A8,
-                        Square::D8,
-                    ),
-                };
-
-                // Is castling?
-                if from == king_square {
-                    match to {
-                        to if to == cstl_ks_k_square => {
-                            // Castling king side
-                            // Move rook
-                            board_new.clear_piece(cstl_ks_r_from_square);
-                            board_new.set_piece(side, Piece::Rook, cstl_ks_r_to_square);
-                            zhash_new.flip_piece_position(side, Piece::Rook, cstl_ks_r_from_square);
-                            zhash_new.flip_piece_position(side, Piece::Rook, cstl_ks_r_to_square);
+                    // Is castling?
+                    if from == king_square {
+                        match to {
+                            to if to == cstl_ks_k_square => {
+                                // Castling king side
+                                // Move rook
+                                board_new.clear_piece(cstl_ks_r_from_square);
+                                board_new.set_piece(side, Piece::Rook, cstl_ks_r_to_square);
+                                zhash_new.flip_piece_position(
+                                    side,
+                                    Piece::Rook,
+                                    cstl_ks_r_from_square,
+                                );
+                                zhash_new.flip_piece_position(
+                                    side,
+                                    Piece::Rook,
+                                    cstl_ks_r_to_square,
+                                );
+                            }
+                            to if to == cstl_qs_k_square => {
+                                // Castling queen side
+                                // Move rook
+                                board_new.clear_piece(cstl_qs_r_from_square);
+                                board_new.set_piece(side, Piece::Rook, cstl_qs_r_to_square);
+                                zhash_new.flip_piece_position(
+                                    side,
+                                    Piece::Rook,
+                                    cstl_qs_r_from_square,
+                                );
+                                zhash_new.flip_piece_position(
+                                    side,
+                                    Piece::Rook,
+                                    cstl_qs_r_to_square,
+                                );
+                            }
+                            _ => {}
                         }
-                        to if to == cstl_qs_k_square => {
-                            // Castling queen side
-                            // Move rook
-                            board_new.clear_piece(cstl_qs_r_from_square);
-                            board_new.set_piece(side, Piece::Rook, cstl_qs_r_to_square);
-                            zhash_new.flip_piece_position(side, Piece::Rook, cstl_qs_r_from_square);
-                            zhash_new.flip_piece_position(side, Piece::Rook, cstl_qs_r_to_square);
-                        }
-                        _ => {}
                     }
-                }
 
-                // Move our piece
-                board_new.clear_piece(from);
-                board_new.set_piece(side, piece, to);
-                zhash_new.flip_piece_position(side, piece, from);
-                zhash_new.flip_piece_position(side, piece, to);
+                    // Move our piece
+                    board_new.clear_piece(from);
+                    board_new.set_piece(side, piece, to);
+                    zhash_new.flip_piece_position(side, piece, from);
+                    zhash_new.flip_piece_position(side, piece, to);
+                }
             }
             Piece::Knight | Piece::Bishop | Piece::Queen => {
                 // Is capture?
