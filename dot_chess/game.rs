@@ -214,20 +214,13 @@ impl Game {
 
     pub fn fen(&self) -> Result<String> {
         let mut fen = String::new();
-        let mut index = 63;
         let mut skips: u8 = 0;
-
-        let write_skips = |buf: &mut String, skips: u8| -> Result<()> {
-            if skips > 0 {
-                write!(buf, "{}", skips)?;
-            }
-
-            Ok(())
-        };
+        let mut ifile = 0u8;
+        let mut irank = 7u8;
 
         // Write positions
         loop {
-            match self.board.piece_at(index.into()) {
+            match self.board.piece_at((irank * 8 + ifile).into()) {
                 Some((side, piece, ..)) => {
                     let mut char: char = piece.into();
 
@@ -236,31 +229,39 @@ impl Game {
                         Side::Black => char.to_ascii_lowercase(),
                     };
 
-                    write_skips(&mut fen, skips)?;
+                    if skips > 0 {
+                        write!(&mut fen, "{}", skips)?;
+                        skips = 0;
+                    }
+
                     write!(&mut fen, "{}", char)?;
                 }
                 None => skips += 1,
             }
 
-            if index % 8 == 0 {
-                write_skips(&mut fen, skips)?;
-                skips = 0;
-
-                if index != 0 {
-                    write!(&mut fen, "/")?;
-                }
+            if ifile != 7 {
+                ifile += 1;
+                continue;
             }
 
-            if index == 0 {
+            if skips > 0 {
+                write!(&mut fen, "{}", skips)?;
+                skips = 0;
+            }
+
+            if irank == 0 {
                 break;
             }
 
-            index -= 1;
+            write!(&mut fen, "/")?;
+
+            irank -= 1;
+            ifile = 0;
         }
 
         // Write side turn
         let turn_char: char = self.next_turn_side().into();
-        write!(&mut fen, " {}", turn_char.to_ascii_lowercase())?;
+        write!(&mut fen, " {} ", turn_char.to_ascii_lowercase())?;
 
         // Write castling rights
         let mut any_castling_right = false;
@@ -910,6 +911,13 @@ mod tests {
         )?;
 
         Ok(())
+    }
+
+    #[ink::test]
+    fn print_fen() {
+        let game = Game::new(Game::FEN_NEW_GAME).unwrap();
+
+        assert_eq!(game.fen().unwrap(), Game::FEN_NEW_GAME);
     }
 
     #[ink::test]
