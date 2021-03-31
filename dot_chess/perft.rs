@@ -30,26 +30,20 @@ pub fn main() -> Result<()> {
 
     let fen = args.get(2).expect("fen argument missing");
 
-    let game = Game::new(fen)?;
+    let mut game = Game::new(fen)?;
 
-    let mut movs: Vec<Mov> = Vec::new();
-
-    if args.len() > 3 {
-        for i in 3..(args.len()) {
-            movs.push(args[i].as_str().try_into()?);
+    if let Some(moves) = args.get(3) {
+        for mov in moves.split_whitespace() {
+            let mov: Mov = mov.try_into()?;
+            game = game.make_move(&mov)?;
         }
-    } else {
-        let mut vec = game.legal_moves();
-        while !vec.is_empty() {
-            movs.push(vec.pop().unwrap());
-        }
-    }
+    };
 
     let mut sum = 0;
 
-    for mov in movs {
-        let game_new = game.make_move(&mov)?;
-        
+    for mov in game.legal_moves().iter() {
+        let game_new = game.make_move(mov)?;
+
         let n = if depth > 1 {
             perft(&game_new, depth - 1)?
         } else {

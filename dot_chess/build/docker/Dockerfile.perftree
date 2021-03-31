@@ -1,0 +1,20 @@
+FROM rust:latest
+
+RUN apt-get update \
+  && apt-get install -y stockfish
+
+RUN rustup install nightly \ 
+  && rustup target add wasm32-unknown-unknown --toolchain nightly \
+  && rustup component add rust-src --toolchain nightly
+
+RUN cargo install perftree
+
+WORKDIR /opt/dot_chess
+
+ADD . .
+
+RUN cargo +nightly build --release
+
+ENV PATH="$PATH:/usr/games"
+
+CMD ["perftree", "./target/release/perft"]

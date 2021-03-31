@@ -143,13 +143,14 @@ impl Board {
     // TODO test
     fn is_attacked(&self, square: Square, by_side: Side) -> bool {
         let bitboard = BitBoard::square(square);
-        let attack_pieces = match by_side {
-            Side::White => self.white,
-            Side::Black => self.black,
+
+        let (attack_pieces, pawn_attack_mask) = match by_side {
+            Side::White => (self.white, bitboard.black_pawn_any_attacks_mask()),
+            Side::Black => (self.black, bitboard.white_pawn_any_attacks_mask()),
         };
 
         let pawns = attack_pieces & self.pawns;
-        if (bitboard.black_pawn_any_attacks_mask() & pawns).not_empty() {
+        if (pawn_attack_mask & pawns).not_empty() {
             return true;
         }
 
@@ -291,7 +292,6 @@ impl Board {
                         let pawn: BitBoard = self.white & BitBoard::square(from);
                         let not_occ = !self.occupied();
 
-                        let black_pawns = self.black & self.pawns;
                         let any_attacks = pawn.white_pawn_any_attacks_mask();
                         let sgl_targets = pawn.north_one() & not_occ;
                         let dbl_targets = sgl_targets.north_one() & BitBoard::RANK_4 & not_occ;
@@ -300,15 +300,14 @@ impl Board {
                         let pas_targets: BitBoard = BitBoard::RANK_6
                             & en_passant_files
                                 .iter()
-                                .fold(BitBoard::EMPTY, |bb, file| bb & BitBoard::from(*file));
+                                .fold(BitBoard::EMPTY, |bb, file| bb | BitBoard::from(*file));
 
-                        ((any_attacks & (pas_targets | black_pawns)) | any_targets) & not_own_pieces
+                        ((any_attacks & (pas_targets | self.black)) | any_targets) & not_own_pieces
                     }
                     (Side::Black, Piece::Pawn) => {
                         let pawn: BitBoard = self.black & BitBoard::square(from);
                         let not_occ = !self.occupied();
 
-                        let white_pawns = self.white & self.pawns;
                         let any_attacks = pawn.black_pawn_any_attacks_mask();
                         let sgl_targets = pawn.south_one() & not_occ;
                         let dbl_targets = sgl_targets.south_one() & BitBoard::RANK_5 & not_occ;
@@ -317,9 +316,9 @@ impl Board {
                         let pas_targets: BitBoard = BitBoard::RANK_3
                             & en_passant_files
                                 .iter()
-                                .fold(BitBoard::EMPTY, |bb, file| bb & BitBoard::from(*file));
+                                .fold(BitBoard::EMPTY, |bb, file| bb | BitBoard::from(*file));
 
-                        ((any_attacks & (pas_targets | white_pawns)) | any_targets) & not_own_pieces
+                        ((any_attacks & (pas_targets | self.white)) | any_targets) & not_own_pieces
                     }
                 }
             }
@@ -349,6 +348,7 @@ impl Board {
 
         self.black &= not_bb;
         self.white &= not_bb;
+        self.pawns &= not_bb;
         self.knights &= not_bb;
         self.bishops &= not_bb;
         self.rooks &= not_bb;
@@ -395,6 +395,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a6p_captures_b5N() {
+        let mut board = Board::empty();
+        let a6 = Square::new(File::A, Rank::_6);
+        let b5 = Square::new(File::B, Rank::_5);
+
+        board.set_piece(Side::Black, Piece::Pawn, a6);
+        board.set_piece(Side::White, Piece::Knight, b5);
+
+        let bitboard = board.pseudo_legal_moves_from(a6, false, false, Vec::new());
+
+        assert!(bitboard.get(b5));
+    }
+
+    #[test]
     fn ray_attacks_sw_g5() {
         let mut board = Board::empty();
 
@@ -418,6 +432,16 @@ mod tests {
             board.ray_attacks(Square::new(File::D, Rank::_5), Direction::North),
             0x8080000000000.into()
         );
+    }
+
+    #[test]
+    fn is_white_king_attacked() {
+        let mut board = Board::empty();
+
+        board.set_piece(Side::White, Piece::King, Square::new(File::C, Rank::_3));
+        board.set_piece(Side::Black, Piece::Pawn, Square::new(File::B, Rank::_4));
+
+        assert!(board.is_attacked(Square::new(File::C, Rank::_3), Side::Black));
     }
 
     #[test]
