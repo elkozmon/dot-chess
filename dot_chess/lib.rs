@@ -16,6 +16,7 @@ mod dot_chess {
     use crate::board::{Mov, Side};
     use crate::game::Game;
     use crate::gameover::GameOverReason;
+    use alloc::format;
     use alloc::string::String;
     use core::convert::TryInto;
     use scale::{Decode, Encode};
@@ -77,7 +78,7 @@ mod dot_chess {
         /// Initiates new game
         #[ink(constructor)]
         pub fn new(white: AccountId, black: AccountId) -> Self {
-            Self::from_fen(white, black, Game::FEN_NEW_GAME.to_string())
+            Self::from_fen(white, black, Game::FEN_NEW_GAME.into())
         }
 
         /// Initiates game from given FEN

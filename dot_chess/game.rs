@@ -1,6 +1,7 @@
 use crate::board::{BitBoard, Board, File, Mov, Piece, Rank, Side, Square};
 use crate::dot_chess::{Error, Result};
 use crate::zobrist::ZobristHash;
+use alloc::format;
 use alloc::string::String;
 use bitintr::Tzcnt;
 use core::convert::TryFrom;

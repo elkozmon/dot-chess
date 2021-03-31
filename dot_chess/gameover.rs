@@ -1,4 +1,6 @@
 use crate::dot_chess::{Error, Result};
+use alloc::format;
+use core::fmt::Write;
 use scale::{Decode, Encode};
 
 #[derive(Encode, Decode, Debug, Copy, Clone)]

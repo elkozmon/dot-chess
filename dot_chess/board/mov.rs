@@ -1,10 +1,12 @@
 use super::{square::Square, File, Piece, Rank};
 use crate::dot_chess::{Error, Result};
+use alloc::format;
+use alloc::string::String;
 use core::convert::TryFrom;
+use core::convert::TryInto;
 use core::fmt::Write;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
-use std::convert::TryInto;
 
 type MovEncoded = u16;
 
@@ -33,7 +35,7 @@ impl core::fmt::Display for Mov {
             .map(|piece| {
                 <Piece as Into<char>>::into(piece)
                     .to_ascii_uppercase()
-                    .to_string()
+                    .into()
             })
             .unwrap_or(String::new());
 

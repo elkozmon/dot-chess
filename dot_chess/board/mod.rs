@@ -52,8 +52,6 @@ impl core::convert::Into<ZobristHash> for Board {
 #[cfg(feature = "std")]
 impl std::fmt::Debug for Board {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut rank = 8u8;
-
         for rank in (0..8).rev() {
             write!(f, "{}", rank + 1)?;
 
@@ -236,8 +234,8 @@ impl Board {
 
                         if !is_attacked {
                             let queen_castling_path = match side {
-                                Side::White => vec![Square::C1, Square::D1],
-                                Side::Black => vec![Square::C8, Square::D8],
+                                Side::White => [Square::C1, Square::D1],
+                                Side::Black => [Square::C8, Square::D8],
                             };
 
                             if queen_castling_right
@@ -251,8 +249,8 @@ impl Board {
                             }
 
                             let king_castling_path = match side {
-                                Side::White => vec![Square::F1, Square::G1],
-                                Side::Black => vec![Square::F8, Square::G8],
+                                Side::White => [Square::F1, Square::G1],
+                                Side::Black => [Square::F8, Square::G8],
                             };
 
                             if king_castling_right

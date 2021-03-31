@@ -1,8 +1,8 @@
-use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
-use scale::{Decode, Encode};
-
 use crate::dot_chess::Error;
 use crate::dot_chess::Result;
+use alloc::format;
+use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
+use scale::{Decode, Encode};
 
 #[derive(
     Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout,
