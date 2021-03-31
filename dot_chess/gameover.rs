@@ -1,4 +1,4 @@
-use crate::dot_chess::{Error, Result};
+use crate::common::Error;
 use alloc::format;
 use core::fmt::Write;
 use scale::{Decode, Encode};
@@ -24,7 +24,7 @@ impl core::convert::Into<u8> for GameOverReason {
 impl core::convert::TryFrom<u8> for GameOverReason {
     type Error = Error;
 
-    fn try_from(value: u8) -> Result<Self> {
+    fn try_from(value: u8) -> core::result::Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::Checkmate),
             1 => Ok(Self::Stalemate),

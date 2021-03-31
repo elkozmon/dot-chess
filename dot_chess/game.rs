@@ -1,5 +1,5 @@
 use crate::board::{BitBoard, Board, File, Mov, Piece, Rank, Side, Square};
-use crate::dot_chess::{Error, Result};
+use crate::common::{Error, Result};
 use crate::zobrist::ZobristHash;
 use alloc::format;
 use alloc::string::String;
@@ -7,7 +7,6 @@ use bitintr::Tzcnt;
 use core::convert::TryFrom;
 use core::convert::TryInto;
 use core::fmt::Write;
-use ink_storage::collections::HashMap;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use ink_storage::Box;
 use ink_storage::Vec;
@@ -175,7 +174,7 @@ impl State {
 pub struct Game {
     board: Board,
     state: State,
-    history: Box<Vec<ZobristHash>>,
+    zobrist: ZobristHash,
     halfmove_clock: HalfmoveClock,
     fullmove_number: FullmoveNumber,
 }
@@ -183,6 +182,8 @@ pub struct Game {
 impl Game {
     pub const FEN_NEW_GAME: &'static str =
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+    const PROMO_PIECES: [Piece; 4] = [Piece::Knight, Piece::Queen, Piece::Rook, Piece::Bishop];
 
     pub fn new(fen: &str) -> Result<Self> {
         let mut board = Board::empty();
@@ -200,14 +201,12 @@ impl Game {
 
         let board_zhash: ZobristHash = board.into();
         let state_zhash: ZobristHash = state.into();
-
-        let mut history = Vec::new();
-        history.push(board_zhash ^ state_zhash);
+        let zhash = board_zhash ^ state_zhash;
 
         Ok(Self {
             board,
             state,
-            history: Box::new(history),
+            zobrist: zhash,
             halfmove_clock,
             fullmove_number,
         })
@@ -323,6 +322,10 @@ impl Game {
         Ok(fen)
     }
 
+    pub fn zobrist(&self) -> ZobristHash {
+        self.zobrist
+    }
+
     pub fn halfmove_clock(&self) -> HalfmoveClock {
         self.halfmove_clock
     }
@@ -333,22 +336,6 @@ impl Game {
 
     pub fn is_check(&self) -> bool {
         self.board.is_king_attacked(self.next_turn_side())
-    }
-
-    pub fn is_repetition(&self) -> bool {
-        let occ = *self
-            .history
-            .iter()
-            .fold(HashMap::<ZobristHash, u32>::new(), |mut map, zhash| {
-                *map.entry(*zhash).or_insert(0) += 1;
-                map
-            })
-            .into_iter()
-            .max_by_key(|(_, v)| *v)
-            .map(|(_, v)| v)
-            .unwrap();
-
-        occ >= 3
     }
 
     pub fn has_sufficient_mating_material(&self) -> bool {
@@ -377,14 +364,9 @@ impl Game {
         false
     }
 
-    // TODO test
     pub fn has_legal_moves(&self) -> bool {
-        let mut pieces = self.board.pieces_by_side(self.next_turn_side());
-
-        while pieces.not_empty() {
-            let square = pieces.pop_square();
-
-            if self.legal_moves_from(square).not_empty() {
+        for square in self.board.pieces_by_side(self.next_turn_side()) {
+            if !self.legal_moves_from(square).is_empty() {
                 return true;
             }
         }
@@ -392,32 +374,62 @@ impl Game {
         false
     }
 
-    // TODO test
-    pub fn legal_moves_from(&self, from: Square) -> BitBoard {
-        let mut legal_moves = BitBoard::EMPTY;
-        let mut pseudo_moves = self.pseudo_legal_moves_from(from);
+    pub fn legal_moves_from(&self, from: Square) -> Vec<Mov> {
+        let mut legal_moves = Vec::new();
+        let is_pawn = self.board.is_pawn(from);
 
-        while pseudo_moves.not_empty() {
-            let to = pseudo_moves.pop_square();
+        let mut offer_psuedo_move = |mov: Mov| {
+            let (board, ..) = self.make_pseudo_legal_move(&mov).unwrap();
 
-            // Use queen promotion in case its a promo-move, otherwise it doesn't matter
-            let mov = Mov::new(from, to, Some(Piece::Queen));
-
-            let (board, ..) = self.make_pseudo_legal_move(mov).unwrap();
-
-            // Assert king not attacked
-            if board.is_king_attacked(self.next_turn_side()) {
-                continue;
+            // Assert kings not captured
+            if !board.has_both_kings() {
+                return;
             }
 
-            legal_moves |= BitBoard::square(to);
+            // Assert king not left in check
+            if board.is_king_attacked(self.next_turn_side()) {
+                return;
+            }
+
+            legal_moves.push(mov);
+        };
+
+        for to in self.pseudo_legal_moves_from(from) {
+            let is_promo = if let Rank::_8 | Rank::_1 = to.into() {
+                is_pawn
+            } else {
+                false
+            };
+
+            if is_promo {
+                for i in 0..Self::PROMO_PIECES.len() {
+                    let mov = Mov::new(from, to, Some(Self::PROMO_PIECES[i]));
+                    offer_psuedo_move(mov);
+                }
+            } else {
+                let mov = Mov::new(from, to, None);
+                offer_psuedo_move(mov);
+            }
         }
 
         legal_moves
     }
 
-    // TODO test
-    pub fn make_move(&self, mov: Mov) -> Result<Self> {
+    pub fn legal_moves(&self) -> Vec<Mov> {
+        let mut legal_moves = Vec::new();
+
+        for from in self.board.pieces_by_side(self.next_turn_side()) {
+            let mut movs = self.legal_moves_from(from);
+
+            while !movs.is_empty() {
+                legal_moves.push(movs.pop().unwrap());
+            }
+        }
+
+        legal_moves
+    }
+
+    pub fn make_move(&self, mov: &Mov) -> Result<Self> {
         // Assert move is pseudo legal
         if (self.pseudo_legal_moves_from(mov.from()) & BitBoard::square(mov.to())).is_empty() {
             return Err(Error::IllegalMove(format!("Invalid move {}", mov)));
@@ -431,19 +443,10 @@ impl Game {
             return Err(Error::IllegalMove(String::from("King in check")));
         }
 
-        // Create new hash history
-        let mut history: Vec<ZobristHash> = if halfmove_clock > 0 {
-            self.history.iter().map(|zh| *zh).collect()
-        } else {
-            Vec::new()
-        };
-
-        history.push(zhash);
-
         Ok(Self {
             board,
             state,
-            history: Box::new(history),
+            zobrist: zhash,
             halfmove_clock,
             fullmove_number,
         })
@@ -619,10 +622,9 @@ impl Game {
         )
     }
 
-    // TODO test
     fn make_pseudo_legal_move(
         &self,
-        mov: Mov,
+        mov: &Mov,
     ) -> Result<(Board, State, ZobristHash, HalfmoveClock, FullmoveNumber)> {
         // Assert sides turn
         let (side, piece) = self
@@ -641,9 +643,9 @@ impl Game {
         let opponent_pieces = self.board.pieces_by_side(opponent_side);
 
         // Make new board and event bag
-        let mut board_new: Board = self.board.clone();
-        let mut state_new: State = self.state.clone();
-        let mut zhash_new: ZobristHash = *self.history.last().unwrap();
+        let mut board_new = self.board.clone();
+        let mut state_new = self.state.clone();
+        let mut zhash_new = self.zobrist.clone();
         let mut halfmove_clock_new = self.halfmove_clock + 1;
         let fullmove_number_new = match side {
             Side::White => self.fullmove_number,
@@ -927,7 +929,7 @@ mod tests {
 
         Game::new(Game::FEN_NEW_GAME)
             .unwrap()
-            .make_pseudo_legal_move(mov)
+            .make_pseudo_legal_move(&mov)
             .unwrap();
     }
 }

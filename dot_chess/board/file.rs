@@ -1,5 +1,4 @@
-use crate::board::Error;
-use crate::dot_chess::Result;
+use crate::common::{Error, Result};
 use alloc::format;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};

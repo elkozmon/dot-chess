@@ -4,6 +4,7 @@
 extern crate alloc;
 
 mod board;
+mod common;
 mod game;
 mod gameover;
 mod zobrist;
@@ -14,11 +15,15 @@ use ink_lang as ink;
 mod dot_chess {
 
     use crate::board::{Mov, Side};
+    use crate::common::{Error, Result};
     use crate::game::Game;
     use crate::gameover::GameOverReason;
+    use crate::zobrist::ZobristHash;
     use alloc::format;
     use alloc::string::String;
     use core::convert::TryInto;
+    use ink_storage::collections::HashMap;
+    use ink_storage::{Box, Pack, Vec};
     use scale::{Decode, Encode};
 
     const BALANCE_DISTRIBUTION_RATIO: Balance = 98;
@@ -26,29 +31,6 @@ mod dot_chess {
         212, 53, 147, 199, 21, 253, 211, 28, 97, 20, 26, 189, 4, 169, 159, 214, 130, 44, 133, 88,
         133, 76, 205, 227, 154, 86, 132, 231, 165, 109, 162, 125,
     ];
-
-    pub type Result<T> = core::result::Result<T, Error>;
-
-    #[derive(Encode, Decode, Debug, Clone)]
-    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-    pub enum Error {
-        InvalidArgument(String),
-        IllegalMove(String),
-        InvalidCaller,
-        Other,
-    }
-
-    impl core::convert::From<ink_env::Error> for Error {
-        fn from(_: ink_env::Error) -> Self {
-            Self::Other
-        }
-    }
-
-    impl core::convert::From<core::fmt::Error> for Error {
-        fn from(_: core::fmt::Error) -> Self {
-            Self::Other
-        }
-    }
 
     #[ink(event)]
     pub struct PlayerMoved {
@@ -71,7 +53,9 @@ mod dot_chess {
         /// Account playing as black
         black: AccountId,
         /// Game state
-        game: ink_storage::Pack<Game>,
+        game: Pack<Game>,
+        /// Zobrist hash history
+        zobrist: Pack<Box<Vec<ZobristHash>>>,
     }
 
     impl DotChess {
@@ -85,9 +69,16 @@ mod dot_chess {
         #[ink(constructor)]
         pub fn from_fen(white: AccountId, black: AccountId, fen: String) -> Self {
             let game = Game::new(fen.as_str()).unwrap();
-            let game = ink_storage::Pack::new(game);
 
-            Self { white, black, game }
+            let mut zobrist = Vec::new();
+            zobrist.push(game.zobrist());
+
+            Self {
+                white,
+                black,
+                game: Pack::new(game),
+                zobrist: Pack::new(Box::new(zobrist)),
+            }
         }
 
         /// Returns FEN string representation of current game
@@ -107,7 +98,7 @@ mod dot_chess {
             let moov: Mov = mov.as_str().try_into()?;
 
             // Make move
-            let game_new = self.game.make_move(moov)?;
+            let game_new = self.game.make_move(&moov)?;
 
             // Opponent out of moves?
             if !game_new.has_legal_moves() {
@@ -122,6 +113,14 @@ mod dot_chess {
             if !game_new.has_sufficient_mating_material() {
                 return self.terminate_game(None, GameOverReason::InsufficientMatingMaterial);
             }
+
+            // If halfmove clock resets, clear zobrist history
+            if game_new.halfmove_clock() == 0 {
+                self.zobrist.clear();
+            }
+
+            // Add zobrist to history
+            self.zobrist.push(game_new.zobrist());
 
             // Update game
             self.game = ink_storage::Pack::new(game_new);
@@ -148,7 +147,7 @@ mod dot_chess {
                 GameOverReason::FiftyMoveRule if self.game.halfmove_clock() >= 100 => {
                     self.terminate_game(None, GameOverReason::FiftyMoveRule)
                 }
-                GameOverReason::Repetition if self.game.is_repetition() => {
+                GameOverReason::Repetition if self.is_repetition() => {
                     self.terminate_game(None, GameOverReason::Repetition)
                 }
                 reason => Err(Error::InvalidArgument(format!(
@@ -189,6 +188,22 @@ mod dot_chess {
 
             self.env().emit_event(GameOver { winner, reason });
             self.env().terminate_contract(FEE_BENEFICIARY.into())
+        }
+
+        pub fn is_repetition(&self) -> bool {
+            let occ = *self
+                .zobrist
+                .iter()
+                .fold(HashMap::<ZobristHash, u32>::new(), |mut map, zhash| {
+                    *map.entry(*zhash).or_insert(0) += 1;
+                    map
+                })
+                .into_iter()
+                .max_by_key(|(_, v)| *v)
+                .map(|(_, v)| v)
+                .unwrap();
+
+            occ >= 3
         }
 
         fn is_callers_turn(&self) -> bool {

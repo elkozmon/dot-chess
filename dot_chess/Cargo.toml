@@ -41,3 +41,7 @@ std = [
     "scale-info/std",
 ]
 ink-as-dependency = []
+
+[[bin]]
+name = "perft"
+path = "perft.rs"

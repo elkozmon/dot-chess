@@ -7,7 +7,7 @@ mod rank;
 mod side;
 mod square;
 
-use crate::{dot_chess::Error, zobrist::ZobristHash};
+use crate::zobrist::ZobristHash;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use ink_storage::Vec;
 use scale::{Decode, Encode};
@@ -94,11 +94,8 @@ impl Board {
 
     pub fn pieces(&self) -> Vec<(Side, Piece, Square)> {
         let mut pieces = Vec::new();
-        let mut occupied = self.occupied();
 
-        while occupied.not_empty() {
-            let square = occupied.pop_square();
-
+        for square in self.occupied() {
             if let Some((side, piece)) = self.piece_at(square) {
                 pieces.push((side, piece, square));
             }
@@ -107,17 +104,40 @@ impl Board {
         pieces
     }
 
-    pub fn is_king_attacked(&self, king_side: Side) -> bool {
-        self.is_attacked(self.king_square(king_side), king_side.flip())
+    pub fn has_king(&self, side: Side) -> bool {
+        self.king_square(side).is_some()
     }
 
-    fn king_square(&self, side: Side) -> Square {
-        let pieces = match side {
-            Side::White => self.white,
-            Side::Black => self.black,
-        };
+    pub fn has_both_kings(&self) -> bool {
+        if self.king_square(Side::White).is_none() {
+            return false;
+        }
 
-        (pieces & self.kings).pop_square()
+        if self.king_square(Side::Black).is_none() {
+            return false;
+        }
+
+        true
+    }
+
+    pub fn is_king_attacked(&self, king_side: Side) -> bool {
+        let square = self.king_square(king_side).expect("king not on board");
+
+        self.is_attacked(square, king_side.flip())
+    }
+
+    fn king_square(&self, side: Side) -> Option<Square> {
+        let mut bb = self.pieces_by_side(side) & self.kings;
+
+        if bb.is_empty() {
+            return None;
+        }
+
+        Some(bb.pop_square())
+    }
+
+    pub fn is_pawn(&self, square: Square) -> bool {
+        (self.pawns & BitBoard::square(square)).not_empty()
     }
 
     // TODO test
@@ -205,7 +225,6 @@ impl Board {
         self.rook_attacks(from) | self.bishop_attacks(from)
     }
 
-    // TODO test
     pub fn pseudo_legal_moves_from(
         &self,
         from: Square,
@@ -270,12 +289,13 @@ impl Board {
                     }
                     (Side::White, Piece::Pawn) => {
                         let pawn: BitBoard = self.white & BitBoard::square(from);
+                        let not_occ = !self.occupied();
 
-                        let black_pawns: BitBoard = self.black & self.pawns;
-                        let any_attacks: BitBoard = pawn.white_pawn_any_attacks_mask();
-                        let sgl_targets: BitBoard = pawn.north_one() & not_own_pieces;
-                        let any_targets: BitBoard =
-                            sgl_targets | sgl_targets.north_one() & BitBoard::RANK_4;
+                        let black_pawns = self.black & self.pawns;
+                        let any_attacks = pawn.white_pawn_any_attacks_mask();
+                        let sgl_targets = pawn.north_one() & not_occ;
+                        let dbl_targets = sgl_targets.north_one() & BitBoard::RANK_4 & not_occ;
+                        let any_targets = sgl_targets | dbl_targets;
 
                         let pas_targets: BitBoard = BitBoard::RANK_6
                             & en_passant_files
@@ -286,12 +306,13 @@ impl Board {
                     }
                     (Side::Black, Piece::Pawn) => {
                         let pawn: BitBoard = self.black & BitBoard::square(from);
+                        let not_occ = !self.occupied();
 
-                        let white_pawns: BitBoard = self.white & self.pawns;
-                        let any_attacks: BitBoard = pawn.black_pawn_any_attacks_mask();
-                        let sgl_targets: BitBoard = pawn.south_one() & not_own_pieces;
-                        let any_targets: BitBoard =
-                            sgl_targets | sgl_targets.south_one() & BitBoard::RANK_5;
+                        let white_pawns = self.white & self.pawns;
+                        let any_attacks = pawn.black_pawn_any_attacks_mask();
+                        let sgl_targets = pawn.south_one() & not_occ;
+                        let dbl_targets = sgl_targets.south_one() & BitBoard::RANK_5 & not_occ;
+                        let any_targets = sgl_targets | dbl_targets;
 
                         let pas_targets: BitBoard = BitBoard::RANK_3
                             & en_passant_files

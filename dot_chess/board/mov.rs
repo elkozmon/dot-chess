@@ -1,5 +1,5 @@
 use super::{square::Square, File, Piece, Rank};
-use crate::dot_chess::{Error, Result};
+use crate::common::{Error, Result};
 use alloc::format;
 use alloc::string::String;
 use core::convert::TryFrom;

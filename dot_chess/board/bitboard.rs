@@ -143,6 +143,16 @@ impl core::convert::Into<u64> for BitBoard {
     }
 }
 
+impl core::iter::IntoIterator for BitBoard {
+    type Item = Square;
+
+    type IntoIter = BitBoardIntoIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        BitBoardIntoIterator(self)
+    }
+}
+
 impl Blsfill for BitBoard {
     fn blsfill(self) -> Self {
         Self(self.0.blsfill())
@@ -152,6 +162,20 @@ impl Blsfill for BitBoard {
 impl Blsr for BitBoard {
     fn blsr(self) -> Self {
         Self(self.0.blsr())
+    }
+}
+
+pub struct BitBoardIntoIterator(BitBoard);
+
+impl core::iter::Iterator for BitBoardIntoIterator {
+    type Item = Square;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.0.is_empty() {
+            return None;
+        }
+
+        Some(self.0.pop_square())
     }
 }
 
@@ -178,8 +202,6 @@ impl std::fmt::Debug for BitBoard {
 }
 
 impl BitBoard {
-    const LENGTH: i8 = 64;
-
     pub const RANK_1: Self = Self(0x00000000000000ff);
     pub const RANK_2: Self = Self(0x000000000000ff00);
     pub const RANK_3: Self = Self(0x0000000000ff0000);
@@ -202,9 +224,11 @@ impl BitBoard {
     pub const FULL: Self = Self(0xffffffffffffffff);
 
     pub const NOT_FILE_A: Self = Self(0xfefefefefefefefe);
+    pub const NOT_FILE_B: Self = Self(0xfdfdfdfdfdfdfdfd);
+    pub const NOT_FILE_AB: Self = Self(0xfcfcfcfcfcfcfcfc);
+    pub const NOT_FILE_G: Self = Self(0xbfbfbfbfbfbfbfbf);
     pub const NOT_FILE_H: Self = Self(0x7f7f7f7f7f7f7f7f);
-
-    const KNIGHT_ATTACKS: [i8; 8] = [6, 15, 17, 10, -6, -15, -17, -10];
+    pub const NOT_FILE_GH: Self = Self(0x3f3f3f3f3f3f3f3f);
 
     // General
 
@@ -294,8 +318,6 @@ impl BitBoard {
         }
     }
 
-    // Sliding pieces
-
     pub fn rook_attacks_mask(square: Square) -> Self {
         Self::file_mask(square) ^ Self::rank_mask(square)
     }
@@ -308,26 +330,22 @@ impl BitBoard {
         Self::rook_attacks_mask(square) | Self::bishop_attacks_mask(square)
     }
 
-    // Knights
-
     pub fn knight_attacks_mask(square: Square) -> Self {
-        let index: i8 = <Square as Into<u8>>::into(square) as i8;
+        let mut mask = Self::EMPTY;
 
-        Self::KNIGHT_ATTACKS
-            .iter()
-            .filter_map(|i| match index + i {
-                i if i >= BitBoard::LENGTH => None,
-                i if i < 0 => None,
-                i => {
-                    let square: Square = (i as u8).into();
-                    let bitboard: BitBoard = square.into();
-                    Some(bitboard)
-                }
-            })
-            .fold(Self::EMPTY, |l, r| l | r)
+        let knight = Self::square(square);
+
+        mask |= (knight << 17) & Self::NOT_FILE_A; // NoNoEa
+        mask |= (knight << 10) & Self::NOT_FILE_AB; // NoEaEa
+        mask |= (knight >> 6) & Self::NOT_FILE_AB; // SoEaEa
+        mask |= (knight >> 15) & Self::NOT_FILE_A; // SoSoEa
+        mask |= (knight << 15) & Self::NOT_FILE_H; // NoNoWe
+        mask |= (knight << 6) & Self::NOT_FILE_GH; // NoWeWe
+        mask |= (knight >> 10) & Self::NOT_FILE_GH; // SoWeWe
+        mask |= (knight >> 17) & Self::NOT_FILE_H; // SoSoWe
+
+        mask
     }
-
-    // Kings
 
     pub fn king_attacks_mask(square: Square) -> Self {
         let king = Self::square(square);
