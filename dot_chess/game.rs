@@ -418,7 +418,7 @@ impl Game {
     pub fn make_move(&self, mov: Mov) -> Result<Self> {
         // Assert move is pseudo legal
         if (self.pseudo_legal_moves_from(mov.from()) & BitBoard::square(mov.to())).is_empty() {
-            return Err(Error::IllegalMove);
+            return Err(Error::IllegalMove(format!("Invalid move {}", mov)));
         }
 
         let (board, state, zhash, halfmove_clock, fullmove_number) =
@@ -426,7 +426,7 @@ impl Game {
 
         // Assert king not attacked
         if board.is_king_attacked(self.next_turn_side()) {
-            return Err(Error::IllegalMove);
+            return Err(Error::IllegalMove(String::from("King in check")));
         }
 
         // Create new hash history
@@ -456,26 +456,31 @@ impl Game {
         halfmove_clock: &mut HalfmoveClock,
         fullmove_number: &mut FullmoveNumber,
     ) -> Result<()> {
-        let new_error = || Error::InvalidArgument(format!("Malformed FEN string: {}", fen));
+        let new_error = |desc: &str| {
+            Error::InvalidArgument(format!("Unable to parse FEN string: {} ({})", fen, desc))
+        };
 
         let mut fen_chars = fen.chars();
 
         // Parse positions
-        let mut index: u8 = 0;
+        let mut index: u8 = 56;
 
         loop {
-            let char = fen_chars.nth(0).ok_or_else(new_error)?;
+            let char = fen_chars
+                .nth(0)
+                .ok_or_else(|| new_error("unexpected end of string"))?;
 
             if char.is_whitespace() {
                 break;
             }
 
             if char == '/' {
+                index -= 16;
                 continue;
             }
 
-            if char.is_numeric() {
-                index += char.to_digit(10).ok_or_else(new_error)? as u8;
+            if char.is_ascii_digit() {
+                index += char.to_digit(10).unwrap() as u8;
                 continue;
             }
 
@@ -490,35 +495,37 @@ impl Game {
                 let square: Square = index.into();
 
                 board.set_piece(side, piece, square);
+
                 index += 1;
                 continue;
             }
 
             // Unexpected character
-            return Err(new_error());
-        }
-
-        // Validate entire board has been populated
-        if index != 64 {
-            return Err(new_error());
+            return Err(new_error(&format!("unexpected char: {}", char)));
         }
 
         // Parse turn
-        let char = fen_chars.nth(0).ok_or_else(new_error)?;
+        let char = fen_chars
+            .nth(0)
+            .ok_or_else(|| new_error("unexpected end of string"))?;
 
         let side = match char {
             'w' => Side::White,
             'b' => Side::Black,
-            _ => return Err(new_error()),
+            x => return Err(new_error(&format!("unexpected side char: {}", x))),
         };
 
         state.set_next_turn_side(side);
 
         // Parse castling rights
-        fen_chars.advance_by(1).or_else(|_| Err(new_error()))?;
+        fen_chars
+            .advance_by(1)
+            .or_else(|_| Err(new_error("unexpected end of string")))?;
 
         loop {
-            let char = fen_chars.nth(0).ok_or_else(new_error)?;
+            let char = fen_chars
+                .nth(0)
+                .ok_or_else(|| new_error("unexpected end of string"))?;
 
             if char.is_whitespace() {
                 break;
@@ -538,27 +545,27 @@ impl Game {
                 match char.to_ascii_lowercase() {
                     'q' => state.set_queen_side_castling_right(side, true),
                     'k' => state.set_king_side_castling_right(side, true),
-                    _ => return Err(new_error()),
+                    x => return Err(new_error(&format!("unexpected castling char: {}", x))),
                 }
 
                 continue;
             }
 
             // Unexpected character
-            return Err(new_error());
+            return Err(new_error(&format!("unexpected char: {}", char)));
         }
 
         // Parse en passants
-        fen_chars.advance_by(1).or_else(|_| Err(new_error()))?;
-
         loop {
-            let char = fen_chars.nth(0).ok_or_else(new_error)?;
+            let char = fen_chars
+                .nth(0)
+                .ok_or_else(|| new_error("unexpected end of string"))?;
 
             if char.is_whitespace() {
                 break;
             }
 
-            if char.is_numeric() || char == '-' {
+            if char.is_ascii_digit() || char == '-' {
                 continue;
             }
 
@@ -569,22 +576,32 @@ impl Game {
             }
 
             // Unexpected character
-            return Err(new_error());
+            return Err(new_error(&format!("unexpected char: {}", char)));
         }
 
         // Parse halfmove clock
-        *halfmove_clock = fen_chars
+        let char = fen_chars
             .nth(0)
-            .ok_or_else(new_error)?
-            .to_digit(10)
-            .ok_or_else(new_error)?;
+            .ok_or_else(|| new_error("unexpected end of string"))?;
+
+        *halfmove_clock = char.to_digit(10).ok_or_else(|| {
+            new_error(&format!(
+                "expected number for halfmove clock, got: {}",
+                char
+            ))
+        })?;
 
         // Parse Fullmove number
-        *fullmove_number = fen_chars
+        let char = fen_chars
             .nth(1)
-            .ok_or_else(new_error)?
-            .to_digit(10)
-            .ok_or_else(new_error)?;
+            .ok_or_else(|| new_error("unexpected end of string"))?;
+
+        *fullmove_number = char.to_digit(10).ok_or_else(|| {
+            new_error(&format!(
+                "expected number for fullmove number, got: {}",
+                char
+            ))
+        })?;
 
         Ok(())
     }
@@ -875,6 +892,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ink_lang as ink;
 
     #[test]
     fn apply_fen_default() -> Result<()> {
@@ -894,12 +912,13 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn make_pseudo_legal_move_pawn_c2_to_d2() -> Result<()> {
+    #[ink::test]
+    fn make_pseudo_legal_move_pawn_c2_to_d2() {
         let mov = Mov::new(10.into(), 18.into(), None);
 
-        Game::new(Game::FEN_NEW_GAME)?.make_pseudo_legal_move(mov)?;
-
-        Ok(())
+        Game::new(Game::FEN_NEW_GAME)
+            .unwrap()
+            .make_pseudo_legal_move(mov)
+            .unwrap();
     }
 }

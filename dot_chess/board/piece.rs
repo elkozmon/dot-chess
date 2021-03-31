@@ -65,7 +65,7 @@ impl core::convert::TryFrom<char> for Piece {
             'n' => Ok(Piece::Knight),
             'b' => Ok(Piece::Bishop),
             'q' => Ok(Piece::Queen),
-            'k' => Ok(Piece::Knight),
+            'k' => Ok(Piece::King),
             c => Err(Error::InvalidArgument(format!("Invalid Piece char: {}", c))),
         }
     }

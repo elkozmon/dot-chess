@@ -32,8 +32,8 @@ mod dot_chess {
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum Error {
         InvalidArgument(String),
+        IllegalMove(String),
         InvalidCaller,
-        IllegalMove,
         Other,
     }
 

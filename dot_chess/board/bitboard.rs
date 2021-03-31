@@ -429,6 +429,8 @@ impl BitBoard {
     }
 
     pub fn pop_square(&mut self) -> Square {
+        assert!(self.not_empty());
+
         let square = self.bit_scan_forward();
         let index: u8 = square.into();
 

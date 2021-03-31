@@ -1,6 +1,7 @@
 use super::{square::Square, File, Piece, Rank};
 use crate::dot_chess::{Error, Result};
 use core::convert::TryFrom;
+use core::fmt::Write;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 use std::convert::TryInto;
@@ -13,6 +14,37 @@ pub struct Mov {
     from: Square,
     to: Square,
     promotion: Option<Piece>,
+}
+
+impl core::fmt::Display for Mov {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let from_file: File = self.from.into();
+        let from_file: char = from_file.into();
+        let from_rank: Rank = self.from.into();
+        let from_rank: char = from_rank.into();
+
+        let to_file: File = self.to.into();
+        let to_file: char = to_file.into();
+        let to_rank: Rank = self.to.into();
+        let to_rank: char = to_rank.into();
+
+        let promo: String = self
+            .promotion
+            .map(|piece| {
+                <Piece as Into<char>>::into(piece)
+                    .to_ascii_uppercase()
+                    .to_string()
+            })
+            .unwrap_or(String::new());
+
+        write!(
+            f,
+            "{}{}{}{}{}",
+            from_file, from_rank, to_file, to_rank, promo
+        )?;
+
+        Ok(())
+    }
 }
 
 impl core::convert::TryFrom<&str> for Mov {

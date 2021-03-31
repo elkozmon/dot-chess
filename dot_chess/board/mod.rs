@@ -24,7 +24,7 @@ pub use square::Square;
 #[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(
     feature = "std",
-    derive(Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+    derive(PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
 )]
 pub struct Board {
     black: BitBoard,
@@ -46,6 +46,37 @@ impl core::convert::Into<ZobristHash> for Board {
         }
 
         zhash
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::fmt::Debug for Board {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut rank = 8u8;
+
+        for rank in (0..8).rev() {
+            write!(f, "{}", rank + 1)?;
+
+            for file in 0..8 {
+                let square: Square = (rank * 8 + file).into();
+
+                let char = match self.piece_at(square) {
+                    Some((Side::White, piece)) => {
+                        <Piece as Into<char>>::into(piece).to_ascii_uppercase()
+                    }
+                    Some((Side::Black, piece)) => {
+                        <Piece as Into<char>>::into(piece).to_ascii_lowercase()
+                    }
+                    None => '.',
+                };
+
+                write!(f, " {}", char)?;
+            }
+
+            write!(f, "\n")?;
+        }
+
+        writeln!(f, "  A B C D E F G H")
     }
 }
 

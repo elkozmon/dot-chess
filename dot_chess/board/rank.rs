@@ -43,6 +43,21 @@ impl core::convert::TryFrom<u8> for Rank {
     }
 }
 
+impl core::convert::Into<char> for Rank {
+    fn into(self) -> char {
+        match self {
+            Rank::_1 => '1',
+            Rank::_2 => '2',
+            Rank::_3 => '3',
+            Rank::_4 => '4',
+            Rank::_5 => '5',
+            Rank::_6 => '6',
+            Rank::_7 => '7',
+            Rank::_8 => '8',
+        }
+    }
+}
+
 impl core::convert::TryFrom<char> for Rank {
     type Error = Error;
 
