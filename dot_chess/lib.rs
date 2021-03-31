@@ -92,8 +92,8 @@ mod dot_chess {
 
         /// Returns FEN string representation of current game
         #[ink(message)]
-        pub fn fen(&self) -> Result<String> {
-            self.game.fen()
+        pub fn fen(&self) -> String {
+            self.game.fen().unwrap()
         }
 
         /// Makes a move
