@@ -643,6 +643,7 @@ impl Game {
         let opponent_pieces = self.board.pieces_by_side(opponent_side);
 
         // Make new board and event bag
+        let mut is_capture = false;
         let mut board_new = self.board.clone();
         let mut state_new = self.state.clone();
         let mut zhash_new = self.zobrist.clone();
@@ -651,6 +652,7 @@ impl Game {
             Side::White => self.fullmove_number,
             Side::Black => self.fullmove_number + 1,
         };
+
 
         // Reset en passants
         state_new.reset_en_passant_open_files();
@@ -689,6 +691,7 @@ impl Game {
                 } else {
                     // Is capture?
                     if file_from != file_to {
+                        is_capture = true;
                         let en_passant = (BitBoard::square(to) & opponent_pieces).is_empty();
                         let captured_square = if en_passant {
                             match side {
@@ -739,6 +742,7 @@ impl Game {
 
                 // Is capture?
                 if (BitBoard::square(to) & opponent_pieces).not_empty() {
+                    is_capture = true;
                     let (_, captured_piece) = board_new.piece_at(to).unwrap();
 
                     // Capture opponents piece
@@ -832,6 +836,7 @@ impl Game {
             Piece::Knight | Piece::Bishop | Piece::Queen => {
                 // Is capture?
                 if (BitBoard::square(to) & opponent_pieces).not_empty() {
+                    is_capture = true;
                     let (_, captured_piece) = board_new.piece_at(to).unwrap();
 
                     // Capture opponents piece
@@ -851,6 +856,7 @@ impl Game {
             Piece::Rook => {
                 // Is capture?
                 if (BitBoard::square(to) & opponent_pieces).not_empty() {
+                    is_capture = true;
                     let (_, captured_piece) = board_new.piece_at(to).unwrap();
 
                     // Capture opponents piece
@@ -880,6 +886,23 @@ impl Game {
                 board_new.set_piece(side, piece, to);
                 zhash_new.flip_piece_position(side, piece, from);
                 zhash_new.flip_piece_position(side, piece, to);
+            }
+        }
+
+        // Check if captured piece is rook with castling rights, if so remove them
+        if is_capture {
+            let (op_qs_rook_origin, op_ks_rook_origin) = match opponent_side {
+                Side::White => (Square::A1, Square::H1),
+                Side::Black => (Square::A8, Square::H8)
+            };
+
+            if to == op_qs_rook_origin && state_new.queen_side_castling_right(opponent_side) {
+                state_new.set_queen_side_castling_right(opponent_side, false);
+                zhash_new.flip_queen_castling_right(opponent_side);
+            }
+            else if to == op_ks_rook_origin && state_new.king_side_castling_right(opponent_side) {
+                state_new.set_king_side_castling_right(opponent_side, false);
+                zhash_new.flip_king_castling_right(opponent_side);
             }
         }
 
