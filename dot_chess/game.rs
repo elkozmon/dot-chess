@@ -585,26 +585,22 @@ impl Game {
         }
 
         // Parse halfmove clock
-        let char = fen_chars
-            .nth(0)
-            .ok_or_else(|| new_error("unexpected end of string"))?;
+        let halfmove_chars: String = fen_chars.by_ref().take_while(|c| c.is_numeric()).collect();
 
-        *halfmove_clock = char.to_digit(10).ok_or_else(|| {
+        *halfmove_clock = halfmove_chars.parse::<u32>().map_err(|_| {
             new_error(&format!(
                 "expected number for halfmove clock, got: {}",
-                char
+                halfmove_chars
             ))
         })?;
 
         // Parse Fullmove number
-        let char = fen_chars
-            .nth(1)
-            .ok_or_else(|| new_error("unexpected end of string"))?;
+        let fullmove_chars: String = fen_chars.by_ref().take_while(|c| c.is_numeric()).collect();
 
-        *fullmove_number = char.to_digit(10).ok_or_else(|| {
+        *fullmove_number = fullmove_chars.parse::<u32>().map_err(|_| {
             new_error(&format!(
                 "expected number for fullmove number, got: {}",
-                char
+                fullmove_chars
             ))
         })?;
 
@@ -652,7 +648,6 @@ impl Game {
             Side::White => self.fullmove_number,
             Side::Black => self.fullmove_number + 1,
         };
-
 
         // Reset en passants
         state_new.reset_en_passant_open_files();
@@ -893,14 +888,13 @@ impl Game {
         if is_capture {
             let (op_qs_rook_origin, op_ks_rook_origin) = match opponent_side {
                 Side::White => (Square::A1, Square::H1),
-                Side::Black => (Square::A8, Square::H8)
+                Side::Black => (Square::A8, Square::H8),
             };
 
             if to == op_qs_rook_origin && state_new.queen_side_castling_right(opponent_side) {
                 state_new.set_queen_side_castling_right(opponent_side, false);
                 zhash_new.flip_queen_castling_right(opponent_side);
-            }
-            else if to == op_ks_rook_origin && state_new.king_side_castling_right(opponent_side) {
+            } else if to == op_ks_rook_origin && state_new.king_side_castling_right(opponent_side) {
                 state_new.set_king_side_castling_right(opponent_side, false);
                 zhash_new.flip_king_castling_right(opponent_side);
             }
@@ -930,6 +924,24 @@ mod tests {
 
         Game::apply_fen(
             Game::FEN_NEW_GAME,
+            &mut board,
+            &mut state,
+            &mut halfmove_clock,
+            &mut fullmove_number,
+        )?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn apply_fen_1() -> Result<()> {
+        let mut board = Board::empty();
+        let mut state = State::zero();
+        let mut halfmove_clock = 0;
+        let mut fullmove_number = 0;
+
+        Game::apply_fen(
+            "8/1p6/8/p1K5/7k/P7/1r6/6R1 b - - 10 58",
             &mut board,
             &mut state,
             &mut halfmove_clock,
