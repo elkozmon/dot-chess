@@ -253,30 +253,27 @@ impl Board {
                         let mut castling_king_side = BitBoard::EMPTY;
 
                         if !is_attacked {
-                            let queen_castling_path = match side {
-                                Side::White => [Square::C1, Square::D1],
-                                Side::Black => [Square::C8, Square::D8],
+                            let (qs_king_path, qs_rook_path) = match side {
+                                Side::White => ([Square::C1, Square::D1], Square::B1),
+                                Side::Black => ([Square::C8, Square::D8], Square::B8),
                             };
 
                             if queen_castling_right
-                                && !queen_castling_path
-                                    .iter()
-                                    .any(|sq| self.is_attacked(*sq, op_side))
+                                && (BitBoard::square(qs_rook_path) & not_occuppied).not_empty()
+                                && !qs_king_path.iter().any(|sq| self.is_attacked(*sq, op_side))
                             {
                                 castling_queen_side |= (king.west_one() & not_occuppied).west_one()
                                     & not_occuppied
                                     & BitBoard::FILE_C;
                             }
 
-                            let king_castling_path = match side {
+                            let ks_king_path = match side {
                                 Side::White => [Square::F1, Square::G1],
                                 Side::Black => [Square::F8, Square::G8],
                             };
 
                             if king_castling_right
-                                && !king_castling_path
-                                    .iter()
-                                    .any(|sq| self.is_attacked(*sq, op_side))
+                                && !ks_king_path.iter().any(|sq| self.is_attacked(*sq, op_side))
                             {
                                 castling_king_side |= (king.east_one() & not_occuppied).east_one()
                                     & not_occuppied
