@@ -13,6 +13,7 @@ pub enum GameOverReason {
     Resignation,
     Repetition,
     FiftyMoveRule,
+    Abandonment,
 }
 
 impl core::convert::Into<u8> for GameOverReason {
@@ -32,6 +33,7 @@ impl core::convert::TryFrom<u8> for GameOverReason {
             3 => Ok(Self::Resignation),
             4 => Ok(Self::Repetition),
             5 => Ok(Self::FiftyMoveRule),
+            6 => Ok(Self::Abandonment),
             n => Err(Error::InvalidArgument(format!(
                 "Invalid GameOverReason index: {}",
                 n

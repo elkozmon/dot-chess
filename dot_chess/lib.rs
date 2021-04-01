@@ -56,18 +56,43 @@ mod dot_chess {
         game: Pack<Game>,
         /// Zobrist hash history
         zobrist: Pack<Box<Vec<ZobristHash>>>,
+        /// Blocks left for white
+        white_blocks_left: u32,
+        /// Blocks left for black
+        black_blocks_left: u32,
+        /// Block increment per move
+        block_increment: u32,
+        /// Block of last move
+        last_move_block: BlockNumber,
     }
 
     impl DotChess {
         /// Initiates new game
         #[ink(constructor)]
-        pub fn new(white: AccountId, black: AccountId) -> Self {
-            Self::from_fen(white, black, Game::FEN_NEW_GAME.into())
+        pub fn new(
+            white: AccountId,
+            black: AccountId,
+            block_base: u64,
+            block_increment: u64,
+        ) -> Self {
+            Self::from_fen(
+                white,
+                black,
+                block_base,
+                block_increment,
+                Game::FEN_NEW_GAME.into(),
+            )
         }
 
         /// Initiates game from given FEN
         #[ink(constructor)]
-        pub fn from_fen(white: AccountId, black: AccountId, fen: String) -> Self {
+        pub fn from_fen(
+            white: AccountId,
+            black: AccountId,
+            block_base: u64,
+            block_increment: u64,
+            fen: String,
+        ) -> Self {
             let game = Game::new(fen.as_str()).unwrap();
 
             let mut zobrist = Vec::new();
@@ -78,6 +103,10 @@ mod dot_chess {
                 black,
                 game: Pack::new(game),
                 zobrist: Pack::new(Box::new(zobrist)),
+                white_blocks_left: block_base,
+                black_blocks_left: block_base,
+                block_increment,
+                last_move_block: Self::env().block_number().unwrap(),
             }
         }
 
@@ -90,11 +119,16 @@ mod dot_chess {
         /// Makes a move
         #[ink(message)]
         pub fn make_move(&mut self, mov: String) -> Result<()> {
-            if !self.is_callers_turn() {
+            let side = self.callers_side()?;
+
+            if !self.is_sides_turn(side) {
                 return Err(Error::InvalidCaller);
             }
 
-            let side = self.game.next_turn_side();
+            if !self.side_has_blocks_left(side) {
+                return self.terminate_game_out_of_blocks(side);
+            }
+
             let moov: Mov = mov.as_str().try_into()?;
 
             // Make move
@@ -110,7 +144,7 @@ mod dot_chess {
             }
 
             // Is insufficient mating material?
-            if !game_new.has_sufficient_mating_material() {
+            if self.game.no_side_have_sufficient_mating_material() {
                 return self.terminate_game(None, GameOverReason::InsufficientMatingMaterial);
             }
 
@@ -122,23 +156,61 @@ mod dot_chess {
             // Add zobrist to history
             self.zobrist.push(game_new.zobrist());
 
-            // Update game
-            self.game = ink_storage::Pack::new(game_new);
-
             // Emit event
             self.env().emit_event(PlayerMoved {
                 side: side.into(),
                 mov,
-                fen: self.game.fen()?,
+                fen: game_new.fen()?,
             });
+
+            // Update blocks left (must go before updating block number)
+            let blocks_left_ref = match side {
+                Side::White => &mut self.white_blocks_left,
+                Side::Black => &mut self.black_blocks_left,
+            };
+
+            if game_new.fullmove_number() > 40 {
+                *blocks_left_ref += self.block_increment;
+            }
+
+            *blocks_left_ref -= self.block_diff_since_last_move();
+
+            // Update game and last move block number
+            self.game = ink_storage::Pack::new(game_new);
+            self.last_move_block = self.env().block_number()?;
+
+            // Check if player has no blocks left after this move
+            if !self.side_has_blocks_left(side) {
+                return self.terminate_game_out_of_blocks(side);
+            }
 
             Ok(())
         }
 
         #[ink(message)]
+        pub fn report_abandonment(&mut self) -> Result<()> {
+            let next_turn_side = self.game.next_turn_side();
+
+            if !self.side_has_blocks_left(next_turn_side) {
+                return self.terminate_game_out_of_blocks(next_turn_side);
+            }
+
+            Err(Error::InvalidArgument(format!(
+                "{} not out of blocks",
+                next_turn_side
+            )))
+        }
+
+        #[ink(message)]
         pub fn claim_draw(&mut self, reason: u8) -> Result<()> {
-            if !self.is_callers_turn() {
+            let callers_side = self.callers_side()?;
+
+            if !self.is_sides_turn(callers_side) {
                 return Err(Error::InvalidCaller);
+            }
+
+            if !self.side_has_blocks_left(callers_side) {
+                self.terminate_game_out_of_blocks(callers_side)?;
             }
 
             let reason: GameOverReason = reason.try_into()?;
@@ -159,13 +231,13 @@ mod dot_chess {
 
         #[ink(message)]
         pub fn resign(&mut self) -> Result<()> {
-            if !self.is_callers_turn() {
+            let callers_side = self.callers_side()?;
+
+            if !self.is_sides_turn(callers_side) {
                 return Err(Error::InvalidCaller);
             }
 
-            let resignee_side = self.game.next_turn_side();
-
-            self.terminate_game(Some(resignee_side.flip()), GameOverReason::Resignation)
+            self.terminate_game(Some(callers_side.flip()), GameOverReason::Resignation)
         }
 
         fn terminate_game(&mut self, winner: Option<Side>, reason: GameOverReason) -> Result<()> {
@@ -190,7 +262,17 @@ mod dot_chess {
             self.env().terminate_contract(FEE_BENEFICIARY.into())
         }
 
-        pub fn is_repetition(&self) -> bool {
+        fn terminate_game_out_of_blocks(&self, out_of_blocks_side: Side) -> Result<()> {
+            let opponent_side = out_of_blocks_side.flip();
+
+            if self.game.side_has_sufficient_mating_material(opponent_side) {
+                return self.terminate_game(Some(opponent_side), GameOverReason::Abandonment);
+            }
+
+            return self.terminate_game(None, GameOverReason::Abandonment);
+        }
+
+        fn is_repetition(&self) -> bool {
             let occ = *self
                 .zobrist
                 .iter()
@@ -206,17 +288,39 @@ mod dot_chess {
             occ >= 3
         }
 
-        fn is_callers_turn(&self) -> bool {
-            let caller_account = self.env().caller();
+        fn callers_side(&self) -> Result<Side> {
+            let caller = self.env().caller();
 
-            // Assert it's callers turn
-            let side = self.game.next_turn_side();
-            let side_account = match side {
-                Side::White => self.white,
-                Side::Black => self.black,
+            if caller == self.white {
+                return Ok(Side::White);
+            }
+
+            if caller == self.black {
+                return Ok(Side::Black);
+            }
+
+            return Err(Error::InvalidCaller);
+        }
+
+        fn is_sides_turn(&self, side: Side) -> bool {
+            side as u8 == self.game.next_turn_side() as u8
+        }
+
+        fn block_diff_since_last_move(&self) -> Result<u32> {
+            self.env().block_number() - self.last_move_block
+        }
+
+        fn side_has_blocks_left(&self, side: Side) -> Result<bool> {
+            let mut blocks_left = match side {
+                Side::White => self.white_blocks_left,
+                Side::Black => self.black_blocks_left,
             };
 
-            caller_account == side_account
+            if self.is_sides_turn(side) {
+                return Ok(blocks_left >= self.block_diff_since_last_move()?);
+            }
+
+            Ok(blocks_left > 0)
         }
     }
 
@@ -231,7 +335,7 @@ mod dot_chess {
             let white = AccountId::from([0x01; 32]);
             let black = AccountId::from([0x01; 32]);
 
-            let mut chess = DotChess::new(white, black);
+            let mut chess = DotChess::new(white, black, 1, 1);
 
             chess.make_move("d2d3".to_string()).unwrap();
             chess.make_move("g7g6".to_string()).unwrap();

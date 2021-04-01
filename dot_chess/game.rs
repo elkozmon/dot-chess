@@ -330,6 +330,10 @@ impl Game {
         self.halfmove_clock
     }
 
+    pub fn fullmove_number(&self) -> FullmoveNumber {
+        self.fullmove_number
+    }
+
     pub fn next_turn_side(&self) -> Side {
         self.state.next_turn_side()
     }
@@ -338,26 +342,32 @@ impl Game {
         self.board.is_king_attacked(self.next_turn_side())
     }
 
-    pub fn has_sufficient_mating_material(&self) -> bool {
-        let mut white_score = 0;
-        let mut black_score = 0;
+    pub fn no_side_have_sufficient_mating_material(&self) -> bool {
+        if self.side_has_sufficient_mating_material(Side::White) {
+            return false;
+        }
 
-        for (side, piece, _) in self.board.pieces().iter() {
-            let ref_score = match side {
-                Side::White => &mut white_score,
-                Side::Black => &mut black_score,
-            };
+        if self.side_has_sufficient_mating_material(Side::Black) {
+            return false;
+        }
 
+        return true;
+    }
+
+    pub fn side_has_sufficient_mating_material(&self, side: Side) -> bool {
+        let mut any_n_or_b = false;
+
+        for (piece, _) in self.board.pieces_by_side(side).iter() {
             match piece {
-                Piece::Knight | Piece::Bishop => *ref_score += 1,
-                Piece::Pawn | Piece::Rook | Piece::Queen => *ref_score += 2,
+                Piece::Knight | Piece::Bishop => {
+                    if any_n_or_b {
+                        return true;
+                    } else {
+                        any_n_or_b = true;
+                    }
+                }
+                Piece::Pawn | Piece::Rook | Piece::Queen => return true,
                 Piece::King => {}
-            }
-
-            drop(ref_score);
-
-            if white_score > 1 || black_score > 1 {
-                return true;
             }
         }
 
