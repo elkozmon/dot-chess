@@ -4,7 +4,6 @@ use alloc::format;
 use alloc::string::String;
 use core::convert::TryFrom;
 use core::convert::TryInto;
-use core::fmt::Write;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 

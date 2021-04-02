@@ -127,7 +127,7 @@ impl Board {
     }
 
     fn king_square(&self, side: Side) -> Option<Square> {
-        let mut bb = self.pieces_by_side(side) & self.kings;
+        let mut bb = self.squares_by_side(side) & self.kings;
 
         if bb.is_empty() {
             return None;
@@ -236,7 +236,7 @@ impl Board {
         match self.piece_at(from) {
             None => BitBoard::EMPTY,
             Some((side, piece)) => {
-                let not_own_pieces = !self.pieces_by_side(side);
+                let not_own_pieces = !self.squares_by_side(side);
 
                 match (side, piece) {
                     (_, Piece::Bishop) => self.bishop_attacks(from) & not_own_pieces,
@@ -353,7 +353,7 @@ impl Board {
         self.kings &= not_bb;
     }
 
-    pub fn pieces_by_side(&self, side: Side) -> BitBoard {
+    pub fn squares_by_side(&self, side: Side) -> BitBoard {
         match side {
             Side::White => self.white,
             Side::Black => self.black,

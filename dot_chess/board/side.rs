@@ -1,6 +1,5 @@
 use crate::common::{Error, Result};
 use alloc::format;
-use core::fmt::Write;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 

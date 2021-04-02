@@ -72,8 +72,8 @@ mod dot_chess {
         pub fn new(
             white: AccountId,
             black: AccountId,
-            block_base: u64,
-            block_increment: u64,
+            block_base: u32,
+            block_increment: u32,
         ) -> Self {
             Self::from_fen(
                 white,
@@ -89,8 +89,8 @@ mod dot_chess {
         pub fn from_fen(
             white: AccountId,
             black: AccountId,
-            block_base: u64,
-            block_increment: u64,
+            block_base: u32,
+            block_increment: u32,
             fen: String,
         ) -> Self {
             let game = Game::new(fen.as_str()).unwrap();
@@ -106,7 +106,7 @@ mod dot_chess {
                 white_blocks_left: block_base,
                 black_blocks_left: block_base,
                 block_increment,
-                last_move_block: Self::env().block_number().unwrap(),
+                last_move_block: Self::env().block_number(),
             }
         }
 
@@ -119,14 +119,14 @@ mod dot_chess {
         /// Makes a move
         #[ink(message)]
         pub fn make_move(&mut self, mov: String) -> Result<()> {
-            let side = self.callers_side()?;
+            let next_side = self.game.side_next_in_turn();
 
-            if !self.is_sides_turn(side) {
+            if !self.side_belongs_to_caller(next_side) {
                 return Err(Error::InvalidCaller);
             }
 
-            if !self.side_has_blocks_left(side) {
-                return self.terminate_game_out_of_blocks(side);
+            if !self.side_has_blocks_left(next_side) {
+                return self.terminate_game_out_of_blocks(next_side);
             }
 
             let moov: Mov = mov.as_str().try_into()?;
@@ -137,7 +137,7 @@ mod dot_chess {
             // Opponent out of moves?
             if !game_new.has_legal_moves() {
                 if game_new.is_check() {
-                    return self.terminate_game(Some(side), GameOverReason::Checkmate);
+                    return self.terminate_game(Some(next_side), GameOverReason::Checkmate);
                 }
 
                 return self.terminate_game(None, GameOverReason::Stalemate);
@@ -158,13 +158,15 @@ mod dot_chess {
 
             // Emit event
             self.env().emit_event(PlayerMoved {
-                side: side.into(),
+                side: next_side.into(),
                 mov,
                 fen: game_new.fen()?,
             });
 
             // Update blocks left (must go before updating block number)
-            let blocks_left_ref = match side {
+            let block_diff = self.block_diff_since_last_move();
+
+            let blocks_left_ref = match next_side {
                 Side::White => &mut self.white_blocks_left,
                 Side::Black => &mut self.black_blocks_left,
             };
@@ -173,15 +175,15 @@ mod dot_chess {
                 *blocks_left_ref += self.block_increment;
             }
 
-            *blocks_left_ref -= self.block_diff_since_last_move();
+            *blocks_left_ref -= block_diff;
 
             // Update game and last move block number
             self.game = ink_storage::Pack::new(game_new);
-            self.last_move_block = self.env().block_number()?;
+            self.last_move_block = self.env().block_number();
 
             // Check if player has no blocks left after this move
-            if !self.side_has_blocks_left(side) {
-                return self.terminate_game_out_of_blocks(side);
+            if !self.side_has_blocks_left(next_side) {
+                return self.terminate_game_out_of_blocks(next_side);
             }
 
             Ok(())
@@ -189,28 +191,27 @@ mod dot_chess {
 
         #[ink(message)]
         pub fn report_abandonment(&mut self) -> Result<()> {
-            let next_turn_side = self.game.next_turn_side();
+            let next_side = self.game.side_next_in_turn();
 
-            if !self.side_has_blocks_left(next_turn_side) {
-                return self.terminate_game_out_of_blocks(next_turn_side);
+            if !self.side_has_blocks_left(next_side) {
+                return self.terminate_game_out_of_blocks(next_side);
             }
 
-            Err(Error::InvalidArgument(format!(
-                "{} not out of blocks",
-                next_turn_side
-            )))
+            let error_message = format!("{} not out of blocks", next_side);
+
+            Err(Error::InvalidArgument(error_message))
         }
 
         #[ink(message)]
         pub fn claim_draw(&mut self, reason: u8) -> Result<()> {
-            let callers_side = self.callers_side()?;
+            let next_side = self.game.side_next_in_turn();
 
-            if !self.is_sides_turn(callers_side) {
+            if !self.side_belongs_to_caller(next_side) {
                 return Err(Error::InvalidCaller);
             }
 
-            if !self.side_has_blocks_left(callers_side) {
-                self.terminate_game_out_of_blocks(callers_side)?;
+            if !self.side_has_blocks_left(next_side) {
+                self.terminate_game_out_of_blocks(next_side)?;
             }
 
             let reason: GameOverReason = reason.try_into()?;
@@ -223,7 +224,7 @@ mod dot_chess {
                     self.terminate_game(None, GameOverReason::Repetition)
                 }
                 reason => Err(Error::InvalidArgument(format!(
-                    "Draw claim due to {:?} doesn't meet requirements",
+                    "Draw claim on basis of {:?} doesn't meet the requirements",
                     reason
                 ))),
             }
@@ -231,13 +232,13 @@ mod dot_chess {
 
         #[ink(message)]
         pub fn resign(&mut self) -> Result<()> {
-            let callers_side = self.callers_side()?;
+            let next_side = self.game.side_next_in_turn();
 
-            if !self.is_sides_turn(callers_side) {
+            if !self.side_belongs_to_caller(next_side) {
                 return Err(Error::InvalidCaller);
             }
 
-            self.terminate_game(Some(callers_side.flip()), GameOverReason::Resignation)
+            self.terminate_game(Some(next_side.flip()), GameOverReason::Resignation)
         }
 
         fn terminate_game(&mut self, winner: Option<Side>, reason: GameOverReason) -> Result<()> {
@@ -262,7 +263,7 @@ mod dot_chess {
             self.env().terminate_contract(FEE_BENEFICIARY.into())
         }
 
-        fn terminate_game_out_of_blocks(&self, out_of_blocks_side: Side) -> Result<()> {
+        fn terminate_game_out_of_blocks(&mut self, out_of_blocks_side: Side) -> Result<()> {
             let opponent_side = out_of_blocks_side.flip();
 
             if self.game.side_has_sufficient_mating_material(opponent_side) {
@@ -288,39 +289,36 @@ mod dot_chess {
             occ >= 3
         }
 
-        fn callers_side(&self) -> Result<Side> {
-            let caller = self.env().caller();
-
-            if caller == self.white {
-                return Ok(Side::White);
+        fn side_account(&self, side: Side) -> AccountId {
+            match side {
+                Side::White => self.white,
+                Side::Black => self.black,
             }
-
-            if caller == self.black {
-                return Ok(Side::Black);
-            }
-
-            return Err(Error::InvalidCaller);
         }
 
-        fn is_sides_turn(&self, side: Side) -> bool {
-            side as u8 == self.game.next_turn_side() as u8
+        fn side_has_next_turn(&self, side: Side) -> bool {
+            side as u8 == self.game.side_next_in_turn() as u8
         }
 
-        fn block_diff_since_last_move(&self) -> Result<u32> {
-            self.env().block_number() - self.last_move_block
+        fn side_belongs_to_caller(&self, side: Side) -> bool {
+            self.env().caller() == self.side_account(side)
         }
 
-        fn side_has_blocks_left(&self, side: Side) -> Result<bool> {
+        fn side_has_blocks_left(&self, side: Side) -> bool {
             let mut blocks_left = match side {
                 Side::White => self.white_blocks_left,
                 Side::Black => self.black_blocks_left,
             };
 
-            if self.is_sides_turn(side) {
-                return Ok(blocks_left >= self.block_diff_since_last_move()?);
+            if self.side_has_next_turn(side) {
+                return blocks_left >= self.block_diff_since_last_move();
             }
 
-            Ok(blocks_left > 0)
+            blocks_left > 0
+        }
+
+        fn block_diff_since_last_move(&self) -> u32 {
+            self.env().block_number() - self.last_move_block
         }
     }
 

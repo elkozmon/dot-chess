@@ -63,7 +63,7 @@ impl core::convert::Into<ZobristHash> for State {
             zhash.flip_en_passant_file(*file);
         }
 
-        if let Side::Black = self.next_turn_side() {
+        if let Side::Black = self.side_next_in_turn() {
             zhash.flip_next_turn();
         }
 
@@ -121,14 +121,14 @@ impl State {
         self.set_bit(Self::en_passant_index(file), value)
     }
 
-    pub fn next_turn_side(&self) -> Side {
+    pub fn side_next_in_turn(&self) -> Side {
         match self.bit(Self::WHITES_TURN_INDEX) {
             true => Side::White,
             false => Side::Black,
         }
     }
 
-    pub fn set_next_turn_side(&mut self, side: Side) -> () {
+    pub fn set_side_next_in_turn(&mut self, side: Side) -> () {
         let value = match side {
             Side::White => true,
             Side::Black => false,
@@ -260,7 +260,7 @@ impl Game {
         }
 
         // Write side turn
-        let turn_char: char = self.next_turn_side().into();
+        let turn_char: char = self.side_next_in_turn().into();
         write!(&mut fen, " {} ", turn_char.to_ascii_lowercase())?;
 
         // Write castling rights
@@ -296,7 +296,7 @@ impl Game {
         write!(&mut fen, " ")?;
 
         let mut any_en_passant = false;
-        let rank_char = match self.next_turn_side() {
+        let rank_char = match self.side_next_in_turn() {
             Side::White => '6',
             Side::Black => '3',
         };
@@ -334,12 +334,12 @@ impl Game {
         self.fullmove_number
     }
 
-    pub fn next_turn_side(&self) -> Side {
-        self.state.next_turn_side()
+    pub fn side_next_in_turn(&self) -> Side {
+        self.state.side_next_in_turn()
     }
 
     pub fn is_check(&self) -> bool {
-        self.board.is_king_attacked(self.next_turn_side())
+        self.board.is_king_attacked(self.side_next_in_turn())
     }
 
     pub fn no_side_have_sufficient_mating_material(&self) -> bool {
@@ -357,8 +357,8 @@ impl Game {
     pub fn side_has_sufficient_mating_material(&self, side: Side) -> bool {
         let mut any_n_or_b = false;
 
-        for (piece, _) in self.board.pieces_by_side(side).iter() {
-            match piece {
+        for square in self.board.squares_by_side(side).into_iter() {
+            match self.board.piece_at(square).unwrap().1 {
                 Piece::Knight | Piece::Bishop => {
                     if any_n_or_b {
                         return true;
@@ -375,7 +375,7 @@ impl Game {
     }
 
     pub fn has_legal_moves(&self) -> bool {
-        for square in self.board.pieces_by_side(self.next_turn_side()) {
+        for square in self.board.squares_by_side(self.side_next_in_turn()) {
             if !self.legal_moves_from(square).is_empty() {
                 return true;
             }
@@ -397,7 +397,7 @@ impl Game {
             }
 
             // Assert king not left in check
-            if board.is_king_attacked(self.next_turn_side()) {
+            if board.is_king_attacked(self.side_next_in_turn()) {
                 return;
             }
 
@@ -428,7 +428,7 @@ impl Game {
     pub fn legal_moves(&self) -> Vec<Mov> {
         let mut legal_moves = Vec::new();
 
-        for from in self.board.pieces_by_side(self.next_turn_side()) {
+        for from in self.board.squares_by_side(self.side_next_in_turn()) {
             let mut movs = self.legal_moves_from(from);
 
             while !movs.is_empty() {
@@ -449,7 +449,7 @@ impl Game {
             self.make_pseudo_legal_move(mov)?;
 
         // Assert king not attacked
-        if board.is_king_attacked(self.next_turn_side()) {
+        if board.is_king_attacked(self.side_next_in_turn()) {
             return Err(Error::IllegalMove(String::from("King in check")));
         }
 
@@ -530,7 +530,7 @@ impl Game {
             x => return Err(new_error(&format!("unexpected side char: {}", x))),
         };
 
-        state.set_next_turn_side(side);
+        state.set_side_next_in_turn(side);
 
         // Parse castling rights
         fen_chars
@@ -618,7 +618,7 @@ impl Game {
     }
 
     fn pseudo_legal_moves_from(&self, from: Square) -> BitBoard {
-        let side = self.next_turn_side();
+        let side = self.side_next_in_turn();
 
         self.board.pseudo_legal_moves_from(
             from,
@@ -638,7 +638,7 @@ impl Game {
             .piece_at(mov.from())
             .ok_or(Error::InvalidArgument(format!("Origin square is empty")))?;
 
-        if side as u8 != self.next_turn_side() as u8 {
+        if side as u8 != self.side_next_in_turn() as u8 {
             return Err(Error::InvalidArgument(format!("Not its turn")));
         }
 
@@ -646,7 +646,7 @@ impl Game {
         let to = mov.to();
 
         let opponent_side = side.flip();
-        let opponent_pieces = self.board.pieces_by_side(opponent_side);
+        let opponent_pieces = self.board.squares_by_side(opponent_side);
 
         // Make new board and event bag
         let mut is_capture = false;
@@ -666,7 +666,7 @@ impl Game {
         }
 
         // Switch turns
-        state_new.set_next_turn_side(opponent_side);
+        state_new.set_side_next_in_turn(opponent_side);
         zhash_new.flip_next_turn();
 
         // Move & capture pieces
