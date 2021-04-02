@@ -9,7 +9,7 @@ RUN rustup install nightly \
 
 RUN cargo install perftree
 
-WORKDIR /opt/dot_chess
+WORKDIR /opt/dotchess
 
 ADD . .
 

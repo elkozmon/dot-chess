@@ -1,5 +1,5 @@
 [package]
-name = "dot_chess"
+name = "dotchess"
 version = "0.1.0"
 authors = ["Lubos Kozmon <contact@elkozmon.com>"]
 edition = "2018"
@@ -23,9 +23,10 @@ funty = "=1.1.0"
 bitintr = "0.3.0"
 
 [lib]
-name = "dot_chess"
+name = "dotchess"
 path = "lib.rs"
 crate-type = [
+    "rlib",
 	# Used for normal contract Wasm blobs.
 	"cdylib",
 ]
@@ -41,7 +42,3 @@ std = [
     "scale-info/std",
 ]
 ink-as-dependency = []
-
-[[bin]]
-name = "perft"
-path = "perft.rs"

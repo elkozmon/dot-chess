@@ -1,16 +1,9 @@
 #![feature(iter_advance_by)]
 
 extern crate alloc;
+extern crate dotchess;
 
-mod board;
-mod common;
-mod game;
-mod zobrist;
-
-use board::Mov;
-use common::{Error, Result};
-use game::Game;
-use ink_lang as ink;
+use dotchess::{Error, Game, Mov, Result};
 use std::{convert::TryInto, env};
 
 pub fn main() -> Result<()> {
@@ -50,7 +43,7 @@ pub fn main() -> Result<()> {
             1
         };
 
-        println!("{} {}", mov, n);
+        println!("{} {}", <Mov as Into<String>>::into(*mov), n);
 
         sum += n;
     }

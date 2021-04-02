@@ -9,10 +9,14 @@ mod game;
 mod gameover;
 mod zobrist;
 
+pub use crate::board::Mov;
+pub use crate::common::{Error, Result};
+pub use crate::game::Game;
+
 use ink_lang as ink;
 
 #[ink::contract]
-mod dot_chess {
+mod dotchess {
 
     use crate::board::{Mov, Side};
     use crate::common::{Error, Result};
