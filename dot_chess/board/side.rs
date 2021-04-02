@@ -13,11 +13,14 @@ pub enum Side {
     Black,
 }
 
-impl core::fmt::Display for Side {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+const WHITE_STRING: &'static str = "White";
+const BLACK_STRING: &'static str = "Black";
+
+impl core::convert::Into<&'static str> for Side {
+    fn into(self) -> &'static str {
         match self {
-            Side::White => write!(f, "White"),
-            Side::Black => write!(f, "Black"),
+            Side::White => WHITE_STRING,
+            Side::Black => BLACK_STRING,
         }
     }
 }

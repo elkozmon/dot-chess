@@ -9,7 +9,7 @@ use scale::{Decode, Encode};
 
 type MovEncoded = u16;
 
-#[derive(Encode, Decode, SpreadLayout, PackedLayout)]
+#[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
 pub struct Mov {
     from: Square,
@@ -17,8 +17,8 @@ pub struct Mov {
     promotion: Option<Piece>,
 }
 
-impl core::fmt::Display for Mov {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl core::convert::Into<String> for Mov {
+    fn into(self) -> String {
         let from_file: File = self.from.into();
         let from_file: char = from_file.into();
         let from_rank: Rank = self.from.into();
@@ -38,13 +38,7 @@ impl core::fmt::Display for Mov {
             })
             .unwrap_or(String::new());
 
-        write!(
-            f,
-            "{}{}{}{}{}",
-            from_file, from_rank, to_file, to_rank, promo
-        )?;
-
-        Ok(())
+        format!("{}{}{}{}{}", from_file, from_rank, to_file, to_rank, promo)
     }
 }
 

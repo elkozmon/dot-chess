@@ -197,7 +197,10 @@ mod dot_chess {
                 return self.terminate_game_out_of_blocks(next_side);
             }
 
-            let error_message = format!("{} not out of blocks", next_side);
+            let error_message = format!(
+                "{} not out of blocks",
+                <Side as Into<&'static str>>::into(next_side)
+            );
 
             Err(Error::InvalidArgument(error_message))
         }

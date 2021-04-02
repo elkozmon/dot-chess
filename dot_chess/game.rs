@@ -442,7 +442,9 @@ impl Game {
     pub fn make_move(&self, mov: &Mov) -> Result<Self> {
         // Assert move is pseudo legal
         if (self.pseudo_legal_moves_from(mov.from()) & BitBoard::square(mov.to())).is_empty() {
-            return Err(Error::IllegalMove(format!("Invalid move {}", mov)));
+            let error_msg = format!("Invalid move {}", <Mov as Into<String>>::into(*mov));
+
+            return Err(Error::IllegalMove(error_msg));
         }
 
         let (board, state, zhash, halfmove_clock, fullmove_number) =
