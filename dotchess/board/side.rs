@@ -52,6 +52,21 @@ impl core::convert::Into<char> for Side {
     }
 }
 
+impl core::convert::TryFrom<char> for Side {
+    type Error = Error;
+
+    fn try_from(value: char) -> Result<Self> {
+        match value {
+            'w' => Ok(Side::White),
+            'b' => Ok(Side::Black),
+            n => Err(Error::InvalidArgument(format!(
+                "Invalid Side string: {}",
+                n
+            ))),
+        }
+    }
+}
+
 impl Side {
     pub fn flip(&self) -> Self {
         match self {

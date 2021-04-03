@@ -116,8 +116,20 @@ mod dotchess {
 
         /// Returns FEN string representation of current game
         #[ink(message)]
-        pub fn fen(&self) -> String {
-            self.game.fen().unwrap()
+        pub fn fen(&self) -> Result<String> {
+            Ok(self.game.fen()?)
+        }
+
+        /// Returns number of blocks given side has left
+        #[ink(message)]
+        pub fn blocks_left(&self, side: String) -> Result<u32> {
+            let side: Side = side
+                .chars()
+                .next()
+                .ok_or_else(|| Error::InvalidArgument(String::from("Got empty string for side")))?
+                .try_into()?;
+
+            Ok(self.side_blocks_left(side))
         }
 
         /// Makes a move
@@ -129,7 +141,7 @@ mod dotchess {
                 return Err(Error::InvalidCaller);
             }
 
-            if !self.side_has_blocks_left(next_side) {
+            if self.side_blocks_left(next_side) == 0 {
                 return self.terminate_game_out_of_blocks(next_side);
             }
 
@@ -186,18 +198,19 @@ mod dotchess {
             self.last_move_block = self.env().block_number();
 
             // Check if player has no blocks left after this move
-            if !self.side_has_blocks_left(next_side) {
+            if self.side_blocks_left(next_side) == 0 {
                 return self.terminate_game_out_of_blocks(next_side);
             }
 
             Ok(())
         }
 
+        /// Reports that side which turn it is has abandoned the match
         #[ink(message)]
         pub fn report_abandonment(&mut self) -> Result<()> {
             let next_side = self.game.side_next_in_turn();
 
-            if !self.side_has_blocks_left(next_side) {
+            if self.side_blocks_left(next_side) == 0 {
                 return self.terminate_game_out_of_blocks(next_side);
             }
 
@@ -217,7 +230,7 @@ mod dotchess {
                 return Err(Error::InvalidCaller);
             }
 
-            if !self.side_has_blocks_left(next_side) {
+            if self.side_blocks_left(next_side) == 0 {
                 self.terminate_game_out_of_blocks(next_side)?;
             }
 
@@ -311,17 +324,17 @@ mod dotchess {
             self.env().caller() == self.side_account(side)
         }
 
-        fn side_has_blocks_left(&self, side: Side) -> bool {
+        fn side_blocks_left(&self, side: Side) -> u32 {
             let mut blocks_left = match side {
                 Side::White => self.white_blocks_left,
                 Side::Black => self.black_blocks_left,
             };
 
             if self.side_has_next_turn(side) {
-                return blocks_left >= self.block_diff_since_last_move();
+                blocks_left = blocks_left + 1 - self.block_diff_since_last_move();
             }
 
-            blocks_left > 0
+            blocks_left
         }
 
         fn block_diff_since_last_move(&self) -> u32 {
