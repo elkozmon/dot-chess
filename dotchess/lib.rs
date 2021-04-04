@@ -27,6 +27,7 @@ mod dotchess {
     use alloc::string::String;
     use core::convert::TryInto;
     use ink_storage::collections::HashMap;
+    use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
     use ink_storage::{Box, Pack, Vec};
     use scale::{Decode, Encode};
 
@@ -37,37 +38,55 @@ mod dotchess {
     ];
 
     #[ink(event)]
-    pub struct PlayerMoved {
+    pub struct DrawOfferUpdate {
         #[ink(topic)]
-        side: u8,
-        mov: String,
+        side: String,
+        offer: bool,
         fen: String,
+        side_blocks_left: u32,
+    }
+
+    #[ink(event)]
+    pub struct BoardUpdate {
+        #[ink(topic)]
+        side_turn: String,
+        last_move: String,
+        fen: String,
+        white_blocks_left: u32,
+        black_blocks_left: u32,
     }
 
     #[ink(event)]
     pub struct GameOver {
-        winner: Option<u8>,
-        reason: u8,
+        winner: Option<String>,
+        reason: String,
+    }
+
+    #[derive(Encode, Decode, SpreadLayout, PackedLayout)]
+    #[cfg_attr(
+        feature = "std",
+        derive(Debug, PartialEq, Eq, scale_info::TypeInfo, StorageLayout)
+    )]
+    struct Info {
+        white_account: AccountId,
+        black_account: AccountId,
+        white_blocks_left: u32,
+        black_blocks_left: u32,
+        white_draw_offer: bool,
+        black_draw_offer: bool,
+        last_move_block: BlockNumber,
     }
 
     #[ink(storage)]
     pub struct DotChess {
-        /// Account playing as white
-        white: AccountId,
-        /// Account playing as black
-        black: AccountId,
         /// Game state
         game: Pack<Game>,
+        /// Extra info
+        info: Pack<Info>,
         /// Zobrist hash history
         zobrist: Pack<Box<Vec<ZobristHash>>>,
-        /// Blocks left for white
-        white_blocks_left: u32,
-        /// Blocks left for black
-        black_blocks_left: u32,
         /// Block increment per move
         block_increment: u32,
-        /// Block of last move
-        last_move_block: BlockNumber,
     }
 
     impl DotChess {
@@ -102,15 +121,21 @@ mod dotchess {
             let mut zobrist = Vec::new();
             zobrist.push(game.zobrist());
 
-            Self {
-                white,
-                black,
-                game: Pack::new(game),
-                zobrist: Pack::new(Box::new(zobrist)),
+            let info = Info {
+                white_account: white,
+                black_account: black,
                 white_blocks_left: block_base,
                 black_blocks_left: block_base,
-                block_increment,
+                white_draw_offer: false,
+                black_draw_offer: false,
                 last_move_block: Self::env().block_number(),
+            };
+
+            Self {
+                game: Pack::new(game),
+                info: Pack::new(info),
+                zobrist: Pack::new(Box::new(zobrist)),
+                block_increment,
             }
         }
 
@@ -172,19 +197,12 @@ mod dotchess {
             // Add zobrist to history
             self.zobrist.push(game_new.zobrist());
 
-            // Emit event
-            self.env().emit_event(PlayerMoved {
-                side: next_side.into(),
-                mov,
-                fen: game_new.fen()?,
-            });
-
             // Update blocks left (must go before updating block number)
             let block_diff = self.block_diff_since_last_move();
 
             let blocks_left_ref = match next_side {
-                Side::White => &mut self.white_blocks_left,
-                Side::Black => &mut self.black_blocks_left,
+                Side::White => &mut self.info.white_blocks_left,
+                Side::Black => &mut self.info.black_blocks_left,
             };
 
             if game_new.fullmove_number() > 40 {
@@ -195,12 +213,31 @@ mod dotchess {
 
             // Update game and last move block number
             self.game = ink_storage::Pack::new(game_new);
-            self.last_move_block = self.env().block_number();
+            self.info.last_move_block = self.env().block_number();
 
             // Check if player has no blocks left after this move
             if self.side_blocks_left(next_side) == 0 {
                 return self.terminate_game_out_of_blocks(next_side);
             }
+
+            // Check for threefold repetition
+            if self.max_repetition() >= 3 {
+                return self.terminate_game(None, GameOverReason::ThreefoldRepetition);
+            }
+
+            // Check fifty move rule
+            if self.game.halfmove_clock() >= 100 {
+                return self.terminate_game(None, GameOverReason::FiftyMoveRule);
+            }
+
+            // Emit event
+            self.env().emit_event(BoardUpdate {
+                side_turn: next_side.flip().as_str().to_string(),
+                last_move: mov,
+                fen: self.game.fen()?,
+                white_blocks_left: self.info.white_blocks_left,
+                black_blocks_left: self.info.black_blocks_left,
+            });
 
             Ok(())
         }
@@ -214,16 +251,13 @@ mod dotchess {
                 return self.terminate_game_out_of_blocks(next_side);
             }
 
-            let error_message = format!(
-                "{} not out of blocks",
-                <Side as Into<&'static str>>::into(next_side)
-            );
+            let error_message = format!("{} not out of blocks", next_side.as_str().to_string());
 
             Err(Error::InvalidArgument(error_message))
         }
 
         #[ink(message)]
-        pub fn claim_draw(&mut self, reason: u8) -> Result<()> {
+        pub fn offer_draw(&mut self, offer: bool) -> Result<()> {
             let next_side = self.game.side_next_in_turn();
 
             if !self.side_belongs_to_caller(next_side) {
@@ -231,23 +265,23 @@ mod dotchess {
             }
 
             if self.side_blocks_left(next_side) == 0 {
-                self.terminate_game_out_of_blocks(next_side)?;
+                return self.terminate_game_out_of_blocks(next_side);
             }
 
-            let reason: GameOverReason = reason.try_into()?;
-
-            match reason {
-                GameOverReason::FiftyMoveRule if self.game.halfmove_clock() >= 100 => {
-                    self.terminate_game(None, GameOverReason::FiftyMoveRule)
-                }
-                GameOverReason::Repetition if self.is_repetition() => {
-                    self.terminate_game(None, GameOverReason::Repetition)
-                }
-                reason => Err(Error::InvalidArgument(format!(
-                    "Draw claim on basis of {:?} doesn't meet the requirements",
-                    reason
-                ))),
+            if offer && self.side_draw_offer(next_side.flip()) {
+                return self.terminate_game(None, GameOverReason::DrawAgreement);
             }
+
+            self.set_side_draw_offer(next_side, offer);
+
+            self.env().emit_event(DrawOfferUpdate {
+                side: next_side.as_str().to_string(),
+                offer,
+                fen: self.game.fen()?,
+                side_blocks_left: self.side_blocks_left(next_side),
+            });
+
+            Ok(())
         }
 
         #[ink(message)]
@@ -267,17 +301,17 @@ mod dotchess {
             let pot = balance - fee;
 
             match winner {
-                Some(Side::White) => self.env().transfer(self.white, pot)?,
-                Some(Side::Black) => self.env().transfer(self.black, pot)?,
+                Some(Side::White) => self.env().transfer(self.info.white_account, pot)?,
+                Some(Side::Black) => self.env().transfer(self.info.black_account, pot)?,
                 None => {
                     let split = pot / 2;
-                    self.env().transfer(self.white, split)?;
-                    self.env().transfer(self.black, split)?;
+                    self.env().transfer(self.info.white_account, split)?;
+                    self.env().transfer(self.info.black_account, split)?;
                 }
             }
 
-            let winner: Option<u8> = winner.map(|side| side.into());
-            let reason: u8 = reason.into();
+            let winner = winner.map(|side| side.as_str().to_string());
+            let reason = reason.as_str().to_string();
 
             self.env().emit_event(GameOver { winner, reason });
             self.env().terminate_contract(FEE_BENEFICIARY.into())
@@ -293,8 +327,8 @@ mod dotchess {
             return self.terminate_game(None, GameOverReason::Abandonment);
         }
 
-        fn is_repetition(&self) -> bool {
-            let occ = *self
+        fn max_repetition(&self) -> u32 {
+            *self
                 .zobrist
                 .iter()
                 .fold(HashMap::<ZobristHash, u32>::new(), |mut map, zhash| {
@@ -304,15 +338,27 @@ mod dotchess {
                 .into_iter()
                 .max_by_key(|(_, v)| *v)
                 .map(|(_, v)| v)
-                .unwrap();
+                .unwrap()
+        }
 
-            occ >= 3
+        fn side_draw_offer(&self, side: Side) -> bool {
+            match side {
+                Side::White => self.info.white_draw_offer,
+                Side::Black => self.info.black_draw_offer,
+            }
+        }
+
+        fn set_side_draw_offer(&mut self, side: Side, offer: bool) -> () {
+            match side {
+                Side::White => self.info.white_draw_offer = offer,
+                Side::Black => self.info.black_draw_offer = offer,
+            }
         }
 
         fn side_account(&self, side: Side) -> AccountId {
             match side {
-                Side::White => self.white,
-                Side::Black => self.black,
+                Side::White => self.info.white_account,
+                Side::Black => self.info.black_account,
             }
         }
 
@@ -326,8 +372,8 @@ mod dotchess {
 
         fn side_blocks_left(&self, side: Side) -> u32 {
             let mut blocks_left = match side {
-                Side::White => self.white_blocks_left,
-                Side::Black => self.black_blocks_left,
+                Side::White => self.info.white_blocks_left,
+                Side::Black => self.info.black_blocks_left,
             };
 
             if self.side_has_next_turn(side) {
@@ -338,7 +384,7 @@ mod dotchess {
         }
 
         fn block_diff_since_last_move(&self) -> u32 {
-            self.env().block_number() - self.last_move_block
+            self.env().block_number() - self.info.last_move_block
         }
     }
 

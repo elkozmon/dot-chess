@@ -13,18 +13,6 @@ pub enum Side {
     Black,
 }
 
-const WHITE_STRING: &'static str = "White";
-const BLACK_STRING: &'static str = "Black";
-
-impl core::convert::Into<&'static str> for Side {
-    fn into(self) -> &'static str {
-        match self {
-            Side::White => WHITE_STRING,
-            Side::Black => BLACK_STRING,
-        }
-    }
-}
-
 impl core::convert::Into<u8> for Side {
     fn into(self) -> u8 {
         self as u8
@@ -35,9 +23,11 @@ impl core::convert::TryFrom<u8> for Side {
     type Error = Error;
 
     fn try_from(value: u8) -> Result<Self> {
+        use Side::*;
+
         match value {
-            0 => Ok(Self::White),
-            1 => Ok(Self::Black),
+            n if n == White as u8 => Ok(White),
+            n if n == Black as u8 => Ok(Black),
             n => Err(Error::InvalidArgument(format!("Invalid Side index: {}", n))),
         }
     }
@@ -45,9 +35,11 @@ impl core::convert::TryFrom<u8> for Side {
 
 impl core::convert::Into<char> for Side {
     fn into(self) -> char {
+        use Side::*;
+
         match self {
-            Side::White => 'w',
-            Side::Black => 'b',
+            White => 'w',
+            Black => 'b',
         }
     }
 }
@@ -56,9 +48,11 @@ impl core::convert::TryFrom<char> for Side {
     type Error = Error;
 
     fn try_from(value: char) -> Result<Self> {
+        use Side::*;
+
         match value {
-            'w' => Ok(Side::White),
-            'b' => Ok(Side::Black),
+            'w' => Ok(White),
+            'b' => Ok(Black),
             n => Err(Error::InvalidArgument(format!(
                 "Invalid Side string: {}",
                 n
@@ -69,9 +63,20 @@ impl core::convert::TryFrom<char> for Side {
 
 impl Side {
     pub fn flip(&self) -> Self {
+        use Side::*;
+
         match self {
-            Side::White => Side::Black,
-            Side::Black => Side::White,
+            White => Black,
+            Black => White,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        use Side::*;
+
+        match self {
+            White => "white",
+            Black => "black",
         }
     }
 }

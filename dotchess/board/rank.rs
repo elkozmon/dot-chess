@@ -29,15 +29,17 @@ impl core::convert::TryFrom<u8> for Rank {
     type Error = Error;
 
     fn try_from(value: u8) -> Result<Self> {
+        use Rank::*;
+
         match value {
-            0 => Ok(Self::_1),
-            1 => Ok(Self::_2),
-            2 => Ok(Self::_3),
-            3 => Ok(Self::_4),
-            4 => Ok(Self::_5),
-            5 => Ok(Self::_6),
-            6 => Ok(Self::_7),
-            7 => Ok(Self::_8),
+            n if n == _1 as u8 => Ok(_1),
+            n if n == _2 as u8 => Ok(_2),
+            n if n == _3 as u8 => Ok(_3),
+            n if n == _4 as u8 => Ok(_4),
+            n if n == _5 as u8 => Ok(_5),
+            n if n == _6 as u8 => Ok(_6),
+            n if n == _7 as u8 => Ok(_7),
+            n if n == _8 as u8 => Ok(_8),
             n => Err(Error::InvalidArgument(format!("Invalid Rank index: {}", n))),
         }
     }
@@ -45,15 +47,17 @@ impl core::convert::TryFrom<u8> for Rank {
 
 impl core::convert::Into<char> for Rank {
     fn into(self) -> char {
+        use Rank::*;
+
         match self {
-            Rank::_1 => '1',
-            Rank::_2 => '2',
-            Rank::_3 => '3',
-            Rank::_4 => '4',
-            Rank::_5 => '5',
-            Rank::_6 => '6',
-            Rank::_7 => '7',
-            Rank::_8 => '8',
+            _1 => '1',
+            _2 => '2',
+            _3 => '3',
+            _4 => '4',
+            _5 => '5',
+            _6 => '6',
+            _7 => '7',
+            _8 => '8',
         }
     }
 }
@@ -62,15 +66,17 @@ impl core::convert::TryFrom<char> for Rank {
     type Error = Error;
 
     fn try_from(value: char) -> Result<Self> {
+        use Rank::*;
+
         match value.to_ascii_lowercase() {
-            '1' => Ok(Self::_1),
-            '2' => Ok(Self::_2),
-            '3' => Ok(Self::_3),
-            '4' => Ok(Self::_4),
-            '5' => Ok(Self::_5),
-            '6' => Ok(Self::_6),
-            '7' => Ok(Self::_7),
-            '8' => Ok(Self::_8),
+            '1' => Ok(_1),
+            '2' => Ok(_2),
+            '3' => Ok(_3),
+            '4' => Ok(_4),
+            '5' => Ok(_5),
+            '6' => Ok(_6),
+            '7' => Ok(_7),
+            '8' => Ok(_8),
             c => Err(Error::InvalidArgument(format!("Invalid Rank char: {}", c))),
         }
     }

@@ -28,15 +28,17 @@ impl core::convert::TryFrom<u8> for File {
     type Error = Error;
 
     fn try_from(value: u8) -> Result<Self> {
+        use File::*;
+
         match value {
-            0 => Ok(Self::A),
-            1 => Ok(Self::B),
-            2 => Ok(Self::C),
-            3 => Ok(Self::D),
-            4 => Ok(Self::E),
-            5 => Ok(Self::F),
-            6 => Ok(Self::G),
-            7 => Ok(Self::H),
+            n if n == A as u8 => Ok(A),
+            n if n == B as u8 => Ok(B),
+            n if n == C as u8 => Ok(C),
+            n if n == D as u8 => Ok(D),
+            n if n == E as u8 => Ok(E),
+            n if n == F as u8 => Ok(F),
+            n if n == G as u8 => Ok(G),
+            n if n == H as u8 => Ok(H),
             n => Err(Error::InvalidArgument(format!("Invalid File index: {}", n))),
         }
     }
@@ -44,15 +46,17 @@ impl core::convert::TryFrom<u8> for File {
 
 impl core::convert::Into<char> for File {
     fn into(self) -> char {
+        use File::*;
+
         match self {
-            File::A => 'a',
-            File::B => 'b',
-            File::C => 'c',
-            File::D => 'd',
-            File::E => 'e',
-            File::F => 'f',
-            File::G => 'g',
-            File::H => 'h',
+            A => 'a',
+            B => 'b',
+            C => 'c',
+            D => 'd',
+            E => 'e',
+            F => 'f',
+            G => 'g',
+            H => 'h',
         }
     }
 }
@@ -61,15 +65,17 @@ impl core::convert::TryFrom<char> for File {
     type Error = Error;
 
     fn try_from(value: char) -> Result<Self> {
+        use File::*;
+
         match value.to_ascii_lowercase() {
-            'a' => Ok(Self::A),
-            'b' => Ok(Self::B),
-            'c' => Ok(Self::C),
-            'd' => Ok(Self::D),
-            'e' => Ok(Self::E),
-            'f' => Ok(Self::F),
-            'g' => Ok(Self::G),
-            'h' => Ok(Self::H),
+            'a' => Ok(A),
+            'b' => Ok(B),
+            'c' => Ok(C),
+            'd' => Ok(D),
+            'e' => Ok(E),
+            'f' => Ok(F),
+            'g' => Ok(G),
+            'h' => Ok(H),
             c => Err(Error::InvalidArgument(format!("Invalid File char: {}", c))),
         }
     }
