@@ -149,11 +149,7 @@ mod dotchess {
         /// Returns number of blocks given side has left
         #[ink(message)]
         pub fn blocks_left(&self, side: String) -> Result<u32> {
-            let side: Side = side
-                .chars()
-                .next()
-                .ok_or_else(|| Error::InvalidArgument(String::from("Got empty string for side")))?
-                .try_into()?;
+            let side = Side::from_str(side)?;
 
             Ok(self.side_blocks_left(side))
         }

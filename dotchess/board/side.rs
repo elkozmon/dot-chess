@@ -78,6 +78,18 @@ impl Side {
         }
     }
 
+    pub fn from_str<S: AsRef<str>>(string: S) -> Result<Self> {
+        use Side::*;
+
+        let string = string.as_ref();
+
+        match string {
+            "white" => Ok(White),
+            "black" => Ok(Black),
+            x => Err(Error::InvalidArgument(format!("Invalid Side: {}", x))),
+        }
+    }
+
     pub fn as_str(&self) -> &'static str {
         use Side::*;
 
