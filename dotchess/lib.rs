@@ -368,13 +368,20 @@ mod dotchess {
         }
 
         fn side_blocks_left(&self, side: Side) -> u32 {
-            let mut blocks_left = match side {
+            let blocks_left = match side {
                 Side::White => self.info.white_blocks_left,
                 Side::Black => self.info.black_blocks_left,
             };
 
             if self.side_has_next_turn(side) {
-                blocks_left = blocks_left + 1 - self.block_diff_since_last_move();
+                let block_diff = self.block_diff_since_last_move();
+                let blocks_left_plus_1 = blocks_left + 1;
+
+                if blocks_left_plus_1 < block_diff {
+                    return 0;
+                }
+
+                return blocks_left_plus_1 - block_diff;
             }
 
             blocks_left
