@@ -232,7 +232,7 @@ mod dotchess {
 
             // Emit event
             self.env().emit_event(BoardUpdate {
-                side_turn: next_side.flip().as_str().to_string(),
+                side_turn: String::from(next_side.flip().as_str()),
                 last_move: mov,
                 fen: self.game.fen()?,
                 white_blocks_left: self.info.white_blocks_left,
@@ -251,7 +251,7 @@ mod dotchess {
                 return self.terminate_game_out_of_blocks(next_side);
             }
 
-            let error_message = format!("{} not out of blocks", next_side.as_str().to_string());
+            let error_message = format!("{} not out of blocks", String::from(next_side.as_str()));
 
             Err(Error::InvalidArgument(error_message))
         }
@@ -275,7 +275,7 @@ mod dotchess {
             self.set_side_draw_offer(next_side, offer);
 
             self.env().emit_event(DrawOfferUpdate {
-                side: next_side.as_str().to_string(),
+                side: String::from(next_side.as_str()),
                 offer,
                 fen: self.game.fen()?,
                 side_blocks_left: self.side_blocks_left(next_side),
@@ -310,8 +310,8 @@ mod dotchess {
                 }
             }
 
-            let winner = winner.map(|side| side.as_str().to_string());
-            let reason = reason.as_str().to_string();
+            let winner = winner.map(|side| String::from(side.as_str()));
+            let reason = String::from(reason.as_str());
 
             self.env().emit_event(GameOver { winner, reason });
             self.env().terminate_contract(FEE_BENEFICIARY.into())
