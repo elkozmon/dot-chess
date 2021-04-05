@@ -1,10 +1,22 @@
 use crate::common::{Error, Result};
 use alloc::format;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
+use num_derive::{FromPrimitive, ToPrimitive};
 use scale::{Decode, Encode};
 
 #[derive(
-    Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout,
+    Copy,
+    Clone,
+    PartialOrd,
+    Ord,
+    PartialEq,
+    Eq,
+    Encode,
+    Decode,
+    SpreadLayout,
+    PackedLayout,
+    ToPrimitive,
+    FromPrimitive,
 )]
 #[cfg_attr(feature = "std", derive(Debug, scale_info::TypeInfo, StorageLayout))]
 #[repr(u8)]
@@ -21,7 +33,7 @@ pub enum Rank {
 
 impl core::convert::Into<u8> for Rank {
     fn into(self) -> u8 {
-        self as u8
+        num::ToPrimitive::to_u8(&self).unwrap()
     }
 }
 
@@ -29,19 +41,8 @@ impl core::convert::TryFrom<u8> for Rank {
     type Error = Error;
 
     fn try_from(value: u8) -> Result<Self> {
-        use Rank::*;
-
-        match value {
-            n if n == _1 as u8 => Ok(_1),
-            n if n == _2 as u8 => Ok(_2),
-            n if n == _3 as u8 => Ok(_3),
-            n if n == _4 as u8 => Ok(_4),
-            n if n == _5 as u8 => Ok(_5),
-            n if n == _6 as u8 => Ok(_6),
-            n if n == _7 as u8 => Ok(_7),
-            n if n == _8 as u8 => Ok(_8),
-            n => Err(Error::InvalidArgument(format!("Invalid Rank index: {}", n))),
-        }
+        num::FromPrimitive::from_u8(value)
+            .ok_or_else(|| Error::InvalidArgument(format!("Invalid Rank index: {}", value)))
     }
 }
 

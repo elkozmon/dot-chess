@@ -2,6 +2,7 @@
 #![feature(iter_advance_by)]
 
 extern crate alloc;
+extern crate num;
 
 mod board;
 mod common;

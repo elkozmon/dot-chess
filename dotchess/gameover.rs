@@ -1,10 +1,10 @@
 use crate::common::Error;
 use alloc::format;
 use core::fmt::Write;
+use num_derive::{FromPrimitive, ToPrimitive};
 use scale::{Decode, Encode};
-use GameOverReason::*;
 
-#[derive(Encode, Decode, Debug, Copy, Clone)]
+#[derive(Encode, Decode, Debug, Copy, Clone, ToPrimitive, FromPrimitive)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 #[repr(u8)]
 pub enum GameOverReason {
@@ -20,7 +20,7 @@ pub enum GameOverReason {
 
 impl core::convert::Into<u8> for GameOverReason {
     fn into(self) -> u8 {
-        self as u8
+        num::ToPrimitive::to_u8(&self).unwrap()
     }
 }
 
@@ -28,34 +28,25 @@ impl core::convert::TryFrom<u8> for GameOverReason {
     type Error = Error;
 
     fn try_from(value: u8) -> core::result::Result<Self, Self::Error> {
-        match value {
-            n if n == Checkmate as u8 => Ok(Checkmate),
-            n if n == Stalemate as u8 => Ok(Stalemate),
-            n if n == InsufficientMatingMaterial as u8 => Ok(InsufficientMatingMaterial),
-            n if n == Resignation as u8 => Ok(Resignation),
-            n if n == ThreefoldRepetition as u8 => Ok(ThreefoldRepetition),
-            n if n == FiftyMoveRule as u8 => Ok(FiftyMoveRule),
-            n if n == Abandonment as u8 => Ok(Abandonment),
-            n if n == DrawAgreement as u8 => Ok(DrawAgreement),
-            n => Err(Error::InvalidArgument(format!(
-                "Invalid GameOverReason index: {}",
-                n
-            ))),
-        }
+        num::FromPrimitive::from_u8(value).ok_or_else(|| {
+            Error::InvalidArgument(format!("Invalid GameOverReason index: {}", value))
+        })
     }
 }
 
 impl GameOverReason {
     pub fn as_str(&self) -> &'static str {
+        use GameOverReason::*;
+
         match self {
-            GameOverReason::Checkmate => "checkmate",
-            GameOverReason::Stalemate => "stalemate",
-            GameOverReason::InsufficientMatingMaterial => "insufficient mating material",
-            GameOverReason::Resignation => "resignation",
-            GameOverReason::ThreefoldRepetition => "threefold repetition",
-            GameOverReason::FiftyMoveRule => "fifty move rule",
-            GameOverReason::Abandonment => "abandonment",
-            GameOverReason::DrawAgreement => "draw agreement",
+            Checkmate => "checkmate",
+            Stalemate => "stalemate",
+            InsufficientMatingMaterial => "insufficient mating material",
+            Resignation => "resignation",
+            ThreefoldRepetition => "threefold repetition",
+            FiftyMoveRule => "fifty move rule",
+            Abandonment => "abandonment",
+            DrawAgreement => "draw agreement",
         }
     }
 }

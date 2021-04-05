@@ -1,4 +1,5 @@
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
+use num_derive::{FromPrimitive, ToPrimitive};
 use scale::{Decode, Encode};
 
 #[derive(Copy, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
