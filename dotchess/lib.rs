@@ -44,17 +44,16 @@ mod dotchess {
         side: String,
         offer: bool,
         fen: String,
-        side_blocks_left: u32,
     }
 
     #[ink(event)]
     pub struct BoardUpdate {
         #[ink(topic)]
-        side_turn: String,
+        next_side: String,
+        next_move_block_deadline: u32,
         last_move: String,
+        last_side_blocks_left: u32,
         fen: String,
-        white_blocks_left: u32,
-        black_blocks_left: u32,
     }
 
     #[ink(event)]
@@ -157,14 +156,14 @@ mod dotchess {
         /// Makes a move
         #[ink(message)]
         pub fn make_move(&mut self, mov: String) -> Result<()> {
-            let next_side = self.game.side_next_in_turn();
+            let us_side = self.game.side_next_in_turn();
 
-            if !self.side_belongs_to_caller(next_side) {
+            if !self.side_belongs_to_caller(us_side) {
                 return Err(Error::InvalidCaller);
             }
 
-            if self.side_blocks_left(next_side) == 0 {
-                return self.terminate_game_out_of_blocks(next_side);
+            if self.side_blocks_left(us_side) == 0 {
+                return self.terminate_game_out_of_blocks(us_side);
             }
 
             let moov: Mov = mov.as_str().try_into()?;
@@ -175,7 +174,7 @@ mod dotchess {
             // Opponent out of moves?
             if !game_new.has_legal_moves() {
                 if game_new.is_check() {
-                    return self.terminate_game(Some(next_side), GameOverReason::Checkmate);
+                    return self.terminate_game(Some(us_side), GameOverReason::Checkmate);
                 }
 
                 return self.terminate_game(None, GameOverReason::Stalemate);
@@ -197,7 +196,7 @@ mod dotchess {
             // Update blocks left (must go before updating block number)
             let block_diff = self.block_diff_since_last_move();
 
-            let blocks_left_ref = match next_side {
+            let blocks_left_ref = match us_side {
                 Side::White => &mut self.info.white_blocks_left,
                 Side::Black => &mut self.info.black_blocks_left,
             };
@@ -208,13 +207,15 @@ mod dotchess {
 
             *blocks_left_ref -= block_diff;
 
+            let last_side_blocks_left = *blocks_left_ref;
+
             // Update game and last move block number
             self.game = ink_storage::Pack::new(game_new);
             self.info.last_move_block = self.env().block_number();
 
             // Check if player has no blocks left after this move
-            if self.side_blocks_left(next_side) == 0 {
-                return self.terminate_game_out_of_blocks(next_side);
+            if self.side_blocks_left(us_side) == 0 {
+                return self.terminate_game_out_of_blocks(us_side);
             }
 
             // Check for threefold repetition
@@ -227,13 +228,18 @@ mod dotchess {
                 return self.terminate_game(None, GameOverReason::FiftyMoveRule);
             }
 
+            let op_side = us_side.flip();
+
+            let next_move_block_deadline =
+                self.side_blocks_left(op_side) + self.env().block_number();
+
             // Emit event
             self.env().emit_event(BoardUpdate {
-                side_turn: String::from(next_side.flip().as_str()),
+                next_side: String::from(op_side.as_str()),
+                next_move_block_deadline,
                 last_move: mov,
+                last_side_blocks_left,
                 fen: self.game.fen()?,
-                white_blocks_left: self.info.white_blocks_left,
-                black_blocks_left: self.info.black_blocks_left,
             });
 
             Ok(())
@@ -275,7 +281,6 @@ mod dotchess {
                 side: String::from(next_side.as_str()),
                 offer,
                 fen: self.game.fen()?,
-                side_blocks_left: self.side_blocks_left(next_side),
             });
 
             Ok(())
