@@ -69,6 +69,9 @@ impl core::convert::TryFrom<char> for Side {
 }
 
 impl Side {
+    const WHITE_STRING: &'static str = "white";
+    const BLACK_STRING: &'static str = "black";
+
     pub fn flip(&self) -> Self {
         use Side::*;
 
@@ -84,8 +87,8 @@ impl Side {
         let string = string.as_ref();
 
         match string {
-            "white" => Ok(White),
-            "black" => Ok(Black),
+            Self::WHITE_STRING => Ok(White),
+            Self::BLACK_STRING => Ok(Black),
             x => Err(Error::InvalidArgument(format!("Invalid Side: {}", x))),
         }
     }
@@ -94,8 +97,8 @@ impl Side {
         use Side::*;
 
         match self {
-            White => "white",
-            Black => "black",
+            White => Self::WHITE_STRING,
+            Black => Self::BLACK_STRING,
         }
     }
 }
