@@ -306,7 +306,7 @@ mod dotchess {
                 return self.terminate_game_out_of_blocks(next_side);
             }
 
-            if offer && self.side_draw_offer(next_side.flip()) {
+            if offer && self.get_side_draw_offer(next_side.flip()) {
                 return self.terminate_game(None, GameOverReason::DrawAgreement);
             }
 
@@ -318,6 +318,14 @@ mod dotchess {
             });
 
             Ok(())
+        }
+
+        /// Returns true if `side` {"white","black"} proposes a draw, false otherwise
+        #[ink(message)]
+        pub fn side_draw_offer(&self, side: String) -> Result<bool> {
+            let side = Side::from_str(side)?;
+
+            Ok(self.get_side_draw_offer(side))
         }
 
         /// Resigns the game
@@ -378,7 +386,7 @@ mod dotchess {
                 .unwrap()
         }
 
-        fn side_draw_offer(&self, side: Side) -> bool {
+        fn get_side_draw_offer(&self, side: Side) -> bool {
             match side {
                 Side::White => self.info.white_draw_offer,
                 Side::Black => self.info.black_draw_offer,
