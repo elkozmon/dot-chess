@@ -38,14 +38,24 @@ mod dotchess {
         133, 76, 205, 227, 154, 86, 132, 231, 165, 109, 162, 125,
     ];
 
+    /// Event emitted when there is a draw offer proposed (or withdrawn)
+    /// by the `side` {"white","black"} player
+    ///
+    /// `offer` is true when the offer stands, false when it is withdrawn
     #[ink(event)]
     pub struct DrawOfferUpdate {
         #[ink(topic)]
         side: String,
         offer: bool,
-        fen: String,
     }
 
+    /// Event emitted when player makes a move `last_move`. It also contains blocks left
+    /// for that player
+    ///
+    /// After this event it is `next_side` {"white","black"} players move which must take
+    /// place at latest in `next_move_block_deadline` block
+    ///
+    /// `fen` contains FEN string of board after the last move was made
     #[ink(event)]
     pub struct BoardUpdate {
         #[ink(topic)]
@@ -56,6 +66,19 @@ mod dotchess {
         fen: String,
     }
 
+    /// Event emitted when game ended due to `reason`
+    ///
+    /// Unless the game is drawn, there is also a `winner` {"white","black"}
+    ///
+    /// Possible values for `reason` are:
+    ///   - "checkmate"
+    ///   - "stalemate"
+    ///   - "insufficient mating material"
+    ///   - "resignation"
+    ///   - "threefold repetition"
+    ///   - "fifty move rule"
+    ///   - "abandonment"
+    ///   - "draw agreement"
     #[ink(event)]
     pub struct GameOver {
         winner: Option<String>,
@@ -90,7 +113,8 @@ mod dotchess {
     }
 
     impl DotChess {
-        /// Initiates new game
+        /// Initiates new game where base time for the first 40 moves is `block_base` blocks
+        /// and increment after the 40th move is `block_increment` blocks.
         #[ink(constructor)]
         pub fn new(
             white: AccountId,
@@ -107,7 +131,8 @@ mod dotchess {
             )
         }
 
-        /// Initiates game from given FEN
+        /// Initiates new game from given `fen` string where base time for the first 40 moves
+        /// is `block_base` blocks and increment after the 40th move is `block_increment` blocks.
         #[ink(constructor)]
         pub fn from_fen(
             white: AccountId,
@@ -139,7 +164,7 @@ mod dotchess {
             }
         }
 
-        /// Returns FEN string representation of current game
+        /// Returns FEN string representation of the board
         #[ink(message)]
         pub fn fen(&self) -> Result<String> {
             Ok(self.game.fen()?)
@@ -153,7 +178,15 @@ mod dotchess {
             Ok(self.side_blocks_left(side))
         }
 
-        /// Makes a move
+        /// Makes a move `mov` formatted as [FROM FILE][FROM RANK][TO FILE][TO RANK][PROMO PIECE?]
+        ///
+        /// Codes for promotion pieces are:
+        ///   - N = knight
+        ///   - B = bishop
+        ///   - R = rook
+        ///   - Q = queen
+        ///
+        /// Example move for a pawn-to-queen promotion move from A7 to A8 is denoted as a7a8Q
         #[ink(message)]
         pub fn make_move(&mut self, mov: String) -> Result<()> {
             let us_side = self.game.side_next_in_turn();
@@ -245,7 +278,7 @@ mod dotchess {
             Ok(())
         }
 
-        /// Reports that side which turn it is has abandoned the match
+        /// Reports that next side has abandoned the match
         #[ink(message)]
         pub fn report_abandonment(&mut self) -> Result<()> {
             let next_side = self.game.side_next_in_turn();
@@ -259,6 +292,8 @@ mod dotchess {
             Err(Error::InvalidArgument(error_message))
         }
 
+        /// If `offer` is true, proposes draw to the opposing player,
+        /// otherwise withdraws any previous draw offers
         #[ink(message)]
         pub fn offer_draw(&mut self, offer: bool) -> Result<()> {
             let next_side = self.game.side_next_in_turn();
@@ -280,12 +315,12 @@ mod dotchess {
             self.env().emit_event(DrawOfferUpdate {
                 side: String::from(next_side.as_str()),
                 offer,
-                fen: self.game.fen()?,
             });
 
             Ok(())
         }
 
+        /// Resigns the game
         #[ink(message)]
         pub fn resign(&mut self) -> Result<()> {
             let next_side = self.game.side_next_in_turn();
